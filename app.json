@@ -1,4 +1,8 @@
 {
-  "name": "CommunityServiceFinder",
-  "displayName": "CommunityServiceFinder"
+  "expo": {
+    "name": "CommunityServiceFinder",
+    "slug": "community-service-finder",
+    "version": "1.0.0",
+    "entryPoint": "./index.js"
+  }
 }

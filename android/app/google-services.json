@@ -1,0 +1,17 @@
+{
+  "project_info": {
+    "project_number": "your-project-number",
+    "project_id": "community-service-finder",
+    "storage_bucket": "community-service-finder.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "your-app-id",
+        "android_client_info": {
+          "package_name": "com.communityservicefinder"
+        }
+      }
+    }
+  ]
+}
