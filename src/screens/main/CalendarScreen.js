@@ -1,82 +1,84 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Calendar } from 'react-native-calendars';
-import { Card, Title, Paragraph, Chip, Surface, useTheme } from 'react-native-paper';
+import { Card, Title, Text, Chip, ProgressBar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import moment from 'moment';
 
 const CalendarScreen = ({ navigation }) => {
-  const theme = useTheme();
   const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
 
   const events = {
-    '2025-08-12': [{ id: '2', title: 'Food Bank Volunteering', time: '02:00 PM', category: 'Community Support', color: '#FF9800' }],
-    '2025-08-15': [{ id: '1', title: 'Beach Cleanup Drive', time: '09:00 AM', category: 'Environmental', color: '#4CAF50' }],
-    '2025-08-18':
-        [{ id: '3', title: 'Tree Planting Event', time: '10:00 AM', category: 'Environmental', color: '#4CAF50' }],
-    };
-    const markedDates = Object.keys(events).reduce((acc, date) => {
-    acc[date] = { marked: true, dotColor: theme.colors.primary };
-    if (date === selectedDate) {
-        acc[date].selected = true;
-        acc[date].selectedColor = theme.colors.primary;
-    }
-    return acc;
-    }, {});
-    const EventCard = ({ event }) => (
-    <Card style={styles.eventCard} onPress={() => navigation.navigate('EventDetails', { event })}>
-        <Card.Content>
-        <View style={styles.eventHeader}>
-            <View style={styles.eventInfo}>
-            <Title style={styles.eventTitle} numberOfLines={1}>{event.title}</Title>
-            <Paragraph style={styles.eventTime}>{event.time}</Paragraph>
-            </View>
-            <Chip mode="outlined" compact style={{ borderColor: event.color, color: event.color }}>{event.category}</Chip>
-        </View>
-        </Card.Content>
-    </Card>
-    );
-    return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    '2025-08-15': [
+      {
+        id: '1',
+        title: 'Beach Cleanup Drive',
+        time: '09:00 AM',
+        xp: 100,
+        difficulty: 'Medium',
+        progress: 0.6,
+      },
+    ],
+  };
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+  const markedDates = {
+    [selectedDate]: { selected: true, selectedColor: '#8b5cf6' },
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.banner}>
+          <Title style={styles.bannerTitle}>🗺 Quest Timeline</Title>
+          <Text style={styles.bannerText}>Plan your XP for the week</Text>
+        </LinearGradient>
 
         <Calendar
-
-            onDayPress={day => setSelectedDate(day.dateString)}
-            markedDates={markedDates}
-
-            theme={{
-            selectedDayBackgroundColor: theme.colors.primary,
-            todayTextColor: theme.colors.accent,
-            arrowColor: theme.colors.primary,   
-            monthTextColor: theme.colors.primary,
-            }}
-            style={styles.calendar}
+          markedDates={markedDates}
+          onDayPress={(day) => setSelectedDate(day.dateString)}
+          theme={{
+            selectedDayBackgroundColor: '#8b5cf6',
+            todayTextColor: '#ec4899',
+            arrowColor: '#8b5cf6',
+          }}
         />
-        <View style={styles.eventsContainer}>
-            <Title style={styles.eventsTitle}>Events on {moment(selectedDate).format('MMMM Do, YYYY')}</Title>
-            {events[selectedDate] ? (
-            events[selectedDate].map(event => <EventCard key={event.id} event={event} />)   
-            ) : (
-            <Paragraph style={styles.noEventsText}>No events scheduled for this day.</Paragraph>
-            )}
-        </View>
-        </ScrollView>
+
+        <Title style={styles.sectionTitle}>
+          Events on {moment(selectedDate).format('MMM Do')}
+        </Title>
+
+        {events[selectedDate]?.map(event => (
+          <Card key={event.id} style={styles.card}
+            onPress={() => navigation.navigate('EventDetails', { event })}
+          >
+            <Card.Content>
+              <Title>{event.title}</Title>
+              <Text>{event.time} • 🎮 {event.difficulty}</Text>
+
+              <Chip style={styles.xpChip}>⚡ {event.xp} XP</Chip>
+
+              <ProgressBar
+                progress={event.progress}
+                color="#4ade80"
+                style={{ marginTop: 8 }}
+              />
+            </Card.Content>
+          </Card>
+        ))}
+      </ScrollView>
     </SafeAreaView>
-    );
+  );
 };
+
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    scrollContent: { padding: 20 },
-    calendar: { marginBottom: 20 },
-    eventsContainer: { flex: 1 },
-    eventsTitle: { marginBottom: 10 },
-    noEventsText: { fontStyle: 'italic', color: '#666' },
-    eventCard: { marginBottom: 10 },    
-    eventHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    eventInfo: { flex: 1, marginRight: 10 },
-    eventTitle: { fontSize: 16, fontWeight: 'bold' },
-    eventTime: { fontSize: 14, color: '#666' },
+  container: { flex: 1, backgroundColor: '#0f1117' },
+  banner: { padding: 20, borderRadius: 16, marginBottom: 16 },
+  bannerTitle: { color: '#fff' },
+  bannerText: { color: '#e0e7ff' },
+  sectionTitle: { marginVertical: 12, color: '#fff' },
+  card: { marginBottom: 12, backgroundColor: '#1a1d2e' },
+  xpChip: { marginTop: 8, backgroundColor: '#8b5cf6' },
 });
+
 export default CalendarScreen;

@@ -1,18 +1,24 @@
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { combineReducers } from 'redux';
 
-import authSlice from '../store/authSlice';  // <-- FIXED PATH
+import authReducer from './authSlice';
+import gameReducer from './gameSlice';
+import achievementReducer from './achievementSlice';
+import userReducer from './userSlice';
+
+const rootReducer = combineReducers({
+  auth: authReducer,
+  game: gameReducer,
+  achievements: achievementReducer,
+  user: userReducer,
+});
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
+  whitelist: ['auth', 'game', 'user'], // persist user info
 };
-
-const rootReducer = combineReducers({
-  auth: authSlice,
-});
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 

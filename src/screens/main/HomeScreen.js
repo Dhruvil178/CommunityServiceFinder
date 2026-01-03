@@ -1,60 +1,75 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   RefreshControl,
   Dimensions,
-  TouchableOpacity
+  TouchableOpacity,
+  Image,
 } from 'react-native';
 import {
-  Card,
-  Title,
-  Paragraph,
   Button,
   Avatar,
   Chip,
   Surface,
-  useTheme
+  Text,
+  ProgressBar,
+  Portal,
+  Modal,
 } from 'react-native-paper';
-import { useSelector } from 'react-redux';
-import IconMC from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { gainXP } from '../../store/gameSlice';
 
 const { width } = Dimensions.get('window');
 
+const trendingEvents = [
+  {
+    id: '1',
+    title: 'Beach Cleanup Drive',
+    date: '2025-08-15',
+    location: 'Sunset Beach Park',
+    xpReward: 100,
+    image:
+      'https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?w=800',
+  },
+  {
+    id: '2',
+    title: 'Food Distribution Drive',
+    date: '2025-08-12',
+    location: 'Community Center',
+    xpReward: 80,
+    image:
+      'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800',
+  },
+];
+
 const HomeScreen = ({ navigation }) => {
-  const theme = useTheme();
+  const dispatch = useDispatch();
+
   const user = useSelector(state => state.auth.user);
+  const { xp, level, coins, lastLevelUp } = useSelector(state => state.game);
+
+  const xpToNextLevel = level * 100;
+  const canGainXP = xp < xpToNextLevel;
+
   const [refreshing, setRefreshing] = useState(false);
+  const [showLevelUp, setShowLevelUp] = useState(false);
+  const [seenLevelUpAt, setSeenLevelUpAt] = useState(null);
 
-  const stats = {
-    totalEvents: 156,
-    activeVolunteers: 1243,
-    hoursServed: 8765,
-    certificatesIssued: 421,
-  };
-
-  const upcomingEvents = [
-    {
-      id: '1',
-      title: 'Beach Cleanup Drive',
-      date: '2025-08-15',
-      time: '09:00 AM',
-      category: 'Environmental',
-      spotsLeft: 25,
-      image: 'https://your-server.com/event1.jpg'
-    },
-    {
-      id: '2',
-      title: 'Food Bank Volunteering',
-      date: '2025-08-12',
-      time: '02:00 PM',
-      category: 'Community Support',
-      spotsLeft: 15,
-      image: 'https://your-server.com/event2.jpg'
+  useEffect(() => {
+    if (lastLevelUp && lastLevelUp !== seenLevelUpAt) {
+      setShowLevelUp(true);
+      setSeenLevelUpAt(lastLevelUp);
     }
+  }, [lastLevelUp, seenLevelUpAt]);
+
+  const dailyQuests = [
+    { id: 1, title: 'Share an hour on social media', xp: 25, icon: '📱' },
+    { id: 2, title: 'Join 2 volunteer events', xp: 50, icon: '🎯' },
   ];
 
   const onRefresh = useCallback(() => {
@@ -62,143 +77,227 @@ const HomeScreen = ({ navigation }) => {
     setTimeout(() => setRefreshing(false), 2000);
   }, []);
 
-  const StatCard = ({ icon, value, label, color }) => (
-    <Surface style={[styles.statCard, { backgroundColor: color + '20' }]}>
-      <IconMC name={icon} size={24} color={color} />
-      <Title style={[styles.statValue, { color }]}>{value}</Title>
-      <Paragraph style={styles.statLabel}>{label}</Paragraph>
+  const PlayerCard = () => (
+    <LinearGradient
+      colors={['#6366f1', '#8b5cf6', '#ec4899']}
+      style={styles.playerCard}
+    >
+      <View style={styles.playerHeader}>
+        <View style={styles.playerInfo}>
+          <Avatar.Text
+            size={56}
+            label={user?.name?.charAt(0) || 'D'}
+            style={styles.avatar}
+          />
+          <View style={{ marginLeft: 12 }}>
+            <Text style={styles.playerName}>{user?.name || 'Dhruvil'}</Text>
+            <Chip style={styles.levelChip} textStyle={styles.levelChipText}>
+              Lvl {level}
+            </Chip>
+          </View>
+        </View>
+
+        <View style={styles.coinContainer}>
+          <Text style={styles.coinEmoji}>🪙</Text>
+          <Text style={styles.coinValue}>{coins}</Text>
+        </View>
+      </View>
+
+      <View style={styles.xpBarContainer}>
+        <Text style={styles.xpLabel}>
+          {xp} / {xpToNextLevel} XP
+        </Text>
+        <ProgressBar progress={xp / xpToNextLevel} color="#4ade80" />
+      </View>
+    </LinearGradient>
+  );
+
+  const QuestCard = ({ quest }) => (
+    <Surface style={styles.questCard}>
+      <Text style={styles.questIcon}>{quest.icon}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.questTitle}>{quest.title}</Text>
+        <Text style={styles.rewardText}>+{quest.xp} XP</Text>
+      </View>
+      <Button
+        mode="contained"
+        disabled={!canGainXP}
+        onPress={() => dispatch(gainXP(quest.xp))}
+      >
+        Start
+      </Button>
     </Surface>
   );
 
   const EventCard = ({ event }) => (
-    <Card style={styles.eventCard} onPress={() => navigation.navigate('Events')}>
-      {event.image && (
-        <Card.Cover source={{ uri: event.image }} style={styles.eventImage} />
-      )}
-
-      <Card.Content>
-        <View style={styles.eventHeader}>
-          <View style={styles.eventInfo}>
-            <Title style={styles.eventTitle} numberOfLines={1}>{event.title}</Title>
-            <Paragraph style={styles.eventDate}>{event.date} at {event.time}</Paragraph>
-          </View>
-          <Chip mode="outlined" compact>{event.spotsLeft} spots</Chip>
-        </View>
-
-        <View style={styles.eventFooter}>
-          <Chip icon="tag" compact style={styles.categoryChip}>{event.category}</Chip>
-        </View>
-      </Card.Content>
-    </Card>
+    <Surface style={styles.eventCard}>
+      <Image source={{ uri: event.image }} style={styles.eventImage} />
+      <View style={{ padding: 12 }}>
+        <Text style={styles.eventTitle}>{event.title}</Text>
+        <Text style={styles.eventMeta}>{event.date}</Text>
+        <Text style={styles.eventMeta}>{event.location}</Text>
+        <Button
+          mode="contained"
+          style={{ marginTop: 8 }}
+          onPress={() => navigation.navigate('Events')}
+        >
+          Join (+{event.xpReward} XP)
+        </Button>
+      </View>
+    </Surface>
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-
+    <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        {/* TOP SECTION */}
-        <View style={styles.header}>
-          <Avatar.Image size={64} source={{ uri: user?.avatar }} />
-          <View style={styles.greeting}>
-            <Title style={styles.welcomeText}>Welcome back,</Title>
-            <Title style={styles.userName}>{user?.name}</Title>
-          </View>
+        <PlayerCard />
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Daily Quests</Text>
+          {dailyQuests.map(q => (
+            <QuestCard key={q.id} quest={q} />
+          ))}
         </View>
 
-        {/* Chatbot Button */}
-        <Button
-          mode="contained"
-          icon="robot"
-          onPress={() => navigation.navigate("Chatbot")}
-          style={styles.chatbotButton}
-        >
-          Chat with Assistant
-        </Button>
-
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <StatCard icon="calendar" value={stats.totalEvents} label="Total Events" color={theme.colors.primary} />
-          <StatCard icon="account-group" value={stats.activeVolunteers} label="Volunteers" color={theme.colors.accent} />
-          <StatCard icon="clock" value={stats.hoursServed} label="Hours Served" color={theme.colors.success} />
-          <StatCard icon="certificate" value={stats.certificatesIssued} label="Certificates" color={theme.colors.warning} />
-        </View>
-
-        {/* UPCOMING EVENTS */}
-        <View style={styles.upcomingContainer}>
-          <Title style={styles.sectionTitle}>Upcoming Events</Title>
-          {upcomingEvents.map(event => (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Trending Events</Text>
+          {trendingEvents.map(event => (
             <EventCard key={event.id} event={event} />
           ))}
-          <Button mode="outlined" onPress={() => navigation.navigate('Events')} style={styles.viewAllButton}>
-            View All Events
-          </Button>
         </View>
       </ScrollView>
 
-      {/* FLOATING CHATBOT BUTTON */}
       <TouchableOpacity
         style={styles.chatbotFloatingButton}
-        onPress={() => navigation.navigate("Chatbot")}
+        onPress={() => navigation.navigate('Chatbot')}
       >
-        <Icon name="chat" size={28} color="#fff" />
+        <LinearGradient
+          colors={['#8b5cf6', '#ec4899']}
+          style={styles.chatbotGradient}
+        >
+          <Icon name="chat" size={28} color="#fff" />
+        </LinearGradient>
       </TouchableOpacity>
 
+      <Portal>
+        <Modal
+          visible={showLevelUp}
+          onDismiss={() => setShowLevelUp(false)}
+          contentContainerStyle={styles.levelUpModal}
+        >
+          <Text style={styles.levelUpTitle}>LEVEL UP!</Text>
+          <Text style={styles.levelUpLevel}>Level {level}</Text>
+          <Text style={styles.levelUpReward}>🪙 +50 Coins</Text>
+          <Button
+            mode="contained"
+            onPress={() => setShowLevelUp(false)}
+            style={styles.levelUpButton}
+          >
+            Continue
+          </Button>
+        </Modal>
+      </Portal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { padding: 16 },
-  eventImage: { height: 150, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  chatbotButton: { marginBottom: 16, borderRadius: 12, paddingVertical: 4 },
-  greeting: { marginLeft: 12 },
-  welcomeText: { fontSize: 16, opacity: 0.7 },
-  userName: { fontSize: 20, fontWeight: 'bold' },
-  statsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-  },
-  statCard: {
-    width: width / 2 - 24,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    elevation: 2,
-  },
-  statValue: { fontSize: 22, marginVertical: 4 },
-  statLabel: { fontSize: 14, opacity: 0.7 },
-  upcomingContainer: { marginTop: 20 },
-  sectionTitle: { marginBottom: 10, fontWeight: 'bold' },
-  eventCard: { marginBottom: 12, borderRadius: 12, overflow: 'hidden' },
-  eventHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  eventInfo: { flex: 1, paddingRight: 10 },
-  eventTitle: { fontSize: 16, fontWeight: 'bold' },
-  eventDate: { fontSize: 13, opacity: 0.7 },
-  eventFooter: { flexDirection: 'row', marginTop: 6 },
-  categoryChip: { alignSelf: 'flex-start' },
-  viewAllButton: { marginTop: 12 },
+  container: { flex: 1, backgroundColor: '#0f1117' },
 
-  /* Floating Chatbot Bubble */
+  playerCard: { margin: 16, borderRadius: 20, padding: 16 },
+
+  playerHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+
+  playerInfo: { flexDirection: 'row', alignItems: 'center' },
+
+  avatar: { backgroundColor: '#fbbf24' },
+
+  playerName: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+
+  levelChip: { marginTop: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
+
+  levelChipText: { color: '#fff', fontWeight: 'bold' },
+
+  coinContainer: { flexDirection: 'row', alignItems: 'center' },
+
+  coinEmoji: { fontSize: 20, marginRight: 4 },
+
+  coinValue: { color: '#fff', fontWeight: 'bold' },
+
+  xpBarContainer: { marginTop: 16 },
+
+  xpLabel: { color: '#fff', marginBottom: 6 },
+
+  section: { marginTop: 24, paddingHorizontal: 16 },
+
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+
+  questCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1d2e',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+
+  questIcon: { fontSize: 32, marginRight: 12 },
+
+  questTitle: { color: '#fff', fontWeight: '600' },
+
+  rewardText: { color: '#4ade80', marginTop: 4 },
+
+  eventCard: {
+    backgroundColor: '#1a1d2e',
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+
+  eventImage: { width: '100%', height: 140 },
+
+  eventTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+
+  eventMeta: { color: '#9ca3af', fontSize: 12 },
+
   chatbotFloatingButton: {
-    position: "absolute",
-    bottom: 25,
+    position: 'absolute',
+    bottom: 80,
     right: 20,
-    backgroundColor: "#007bff",
+  },
+
+  chatbotGradient: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 10,
-  }
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  levelUpModal: {
+    backgroundColor: '#1a1d2e',
+    padding: 24,
+    margin: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+
+  levelUpTitle: { color: '#fbbf24', fontSize: 24, fontWeight: 'bold' },
+
+  levelUpLevel: { color: '#fff', fontSize: 18, marginTop: 8 },
+
+  levelUpReward: { color: '#4ade80', marginVertical: 12 },
+
+  levelUpButton: { marginTop: 12 },
 });
 
 export default HomeScreen;

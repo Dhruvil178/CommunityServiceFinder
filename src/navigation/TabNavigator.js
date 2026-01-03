@@ -6,6 +6,7 @@ import EventsScreen from '../screens/main/EventsScreen';
 import CalendarScreen from '../screens/main/CalendarScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import CertificatesScreen from '../screens/main/CertificatesScreen';
+import AchievementsScreen from '../screens/main/AchievementsScreen';
 import { theme } from '../utils/theme';
 
 const Tab = createBottomTabNavigator();
@@ -29,6 +30,15 @@ const TabNavigator = () => (
     headerTintColor: theme.colors.onPrimary,
     headerTitleStyle: { fontWeight: 'bold' },
   })}>
+    <Tab.Screen
+  name="Achievements"
+  component={AchievementsScreen}
+  options={{
+    tabBarIcon: ({ color }) => (
+      <Icon name="emoji-events" color={color} size={22} />
+    ),
+  }}
+/>
     <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Dashboard' }} />
     <Tab.Screen name="Events" component={EventsScreen} options={{ title: 'Find Events' }} />
     <Tab.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />

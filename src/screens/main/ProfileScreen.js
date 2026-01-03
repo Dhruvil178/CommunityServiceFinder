@@ -1,127 +1,66 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Avatar, TextInput, Button, Title, Paragraph, Card, useTheme } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSelector, useDispatch } from 'react-redux';
-import { logout, setUser } from '../../store/authSlice';
+import React from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Avatar, Text, Button, Surface, Chip, Divider } from 'react-native-paper';
+import { useDispatch, useSelector } from 'react-redux';
+import { logout } from '../../store/authSlice';
 
-// Dynamically set API base depending on environment
-const API_BASE = __DEV__
-  ? 'http://192.168.1.5:5000' // <- replace with your computer's local IP & backend port
-  : 'https://your-production-server.com';
-
-const ProfileScreen = () => {
-  const theme = useTheme();
+export default function ProfileScreen({ navigation }) {
   const dispatch = useDispatch();
-  const user = useSelector(state => state.auth.user);
+  const user = useSelector(state => state.user);
+  const { level, xp, coins } = useSelector(state => state.game);
+  const achievements = useSelector(
+    state => Object.keys(state.achievements.unlocked || {}).length
+  );
 
-  const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  // Update profile API call
-  const updateProfileOnServer = async (updatedData) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/profile`, {
-        method: 'PUT', // or POST depending on your backend
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to update profile');
-      return data.user; // backend should return updated user object
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const handleSave = async () => {
-    if (!name.trim() || !email.trim()) {
-      Alert.alert('Error', 'Name and Email cannot be empty');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const updatedUser = await updateProfileOnServer({ name, email });
-      dispatch(setUser(updatedUser)); // update Redux state
-      Alert.alert('Success', 'Profile updated successfully!');
-      setEditing(false);
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    dispatch(logout());
-  };
+  const categories = Array.isArray(user?.preferences?.categories) ? user.preferences.categories : [];
+  const notificationsEnabled = typeof user?.preferences?.notificationsEnabled === 'boolean' ? user.preferences.notificationsEnabled : true;
+  const recentActivity = Array.isArray(user?.activityHistory) ? user.activityHistory : [];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        <View style={styles.avatarContainer}>
-          <Avatar.Image size={100} source={{ uri: user?.avatar }} />
-          <Title style={styles.name}>{user?.name}</Title>
-          <Paragraph style={styles.joinDate}>Joined on {user?.joinDate}</Paragraph>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Surface style={styles.card}>
+        <Avatar.Text size={72} label={user?.name?.charAt(0) || 'D'} style={styles.avatar} />
+        <Text style={styles.name}>{user?.name || 'Dhruvil'}</Text>
+        {user?.bio && <Text style={styles.bio}>{user.bio}</Text>}
+        {user?.phone && <Text style={styles.phone}>📞 {user.phone}</Text>}
+        <View style={styles.statsRow}>
+          <Chip style={styles.chip}>Lvl {level}</Chip>
+          <Chip style={styles.chip}>{xp} XP</Chip>
+          <Chip style={styles.chip}>🪙 {coins}</Chip>
         </View>
+        <Text style={styles.achievementText}>🏆 Achievements Unlocked: {achievements}</Text>
+      </Surface>
 
-        <Card style={styles.card}>
-          <Card.Content>
-            <TextInput
-              label="Name"
-              value={name}
-              onChangeText={setName}
-              disabled={!editing || loading}
-              mode="outlined"
-              style={styles.input}
-            />
-            <TextInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              disabled={!editing || loading}
-              mode="outlined"
-              style={styles.input}
-              keyboardType="email-address"
-            />
-            <Button
-              mode={editing ? "contained" : "outlined"}
-              onPress={editing ? handleSave : () => setEditing(true)}
-              style={styles.editButton}
-              loading={loading}
-            >
-              {editing ? "Save" : "Edit Profile"}
-            </Button>
-          </Card.Content>
-        </Card>
+      <Button mode="contained" style={styles.button} onPress={() => navigation.navigate('EditProfile')}>Edit Profile</Button>
+      <Button mode="contained" style={[styles.button, styles.securityButton]} onPress={() => navigation.navigate('Security')}>Security Settings</Button>
+      <Button mode="outlined" style={styles.logoutButton} textColor="#f87171" onPress={() => dispatch(logout())}>Logout</Button>
 
-        <Button
-          mode="outlined"
-          onPress={handleLogout}
-          style={styles.logoutButton}
-          color={theme.colors.error}
-        >
-          Logout
-        </Button>
-      </ScrollView>
-    </SafeAreaView>
+      <Surface style={styles.card}>
+        <Text style={styles.subheading}>Preferences</Text>
+        <Text>Categories: {categories.length ? categories.join(', ') : 'None'}</Text>
+        <Text>Notifications: {notificationsEnabled ? 'Enabled' : 'Disabled'}</Text>
+        <Divider style={{ marginVertical: 12 }} />
+        <Text style={styles.subheading}>Recent Activity</Text>
+        {recentActivity.length ? recentActivity.slice(-5).reverse().map((activity, idx) => (
+          <Text key={idx}>• {activity}</Text>
+        )) : <Text>No recent activity.</Text>}
+      </Surface>
+    </ScrollView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollView: { padding: 16 },
-  avatarContainer: { alignItems: 'center', marginBottom: 24 },
-  name: { marginTop: 12, fontWeight: 'bold', fontSize: 22 },
-  joinDate: { opacity: 0.7, fontSize: 14 },
-  card: { marginBottom: 24 },
-  input: { marginBottom: 16 },
-  editButton: { marginTop: 8 },
-  logoutButton: { marginTop: 8 },
+  container: { flex: 1, backgroundColor: '#0f1117', padding: 16 },
+  card: { padding: 20, borderRadius: 20, backgroundColor: '#1a1d2e', marginBottom: 20, elevation: 3 },
+  avatar: { backgroundColor: '#6366f1', marginBottom: 12 },
+  name: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  bio: { color: '#d1d5db', fontSize: 14, textAlign: 'center', marginTop: 6 },
+  phone: { color: '#9ca3af', fontSize: 13, marginTop: 4 },
+  statsRow: { flexDirection: 'row', marginTop: 16, gap: 8 },
+  chip: { backgroundColor: '#111827' },
+  achievementText: { marginTop: 12, color: '#9ca3af', fontSize: 13, textAlign: 'center' },
+  button: { marginBottom: 12 },
+  securityButton: { backgroundColor: '#4f46e5' },
+  logoutButton: { borderColor: '#f87171' },
+  subheading: { fontSize: 16, fontWeight: '600', marginBottom: 6, color: '#fff' },
 });
-
-export default ProfileScreen;

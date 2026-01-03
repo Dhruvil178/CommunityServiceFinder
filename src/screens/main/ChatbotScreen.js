@@ -1,204 +1,56 @@
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, FlatList, TextInput, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
-export default function ChatbotScreen() {
+const ChatbotScreen = () => {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const flatRef = useRef(null);
+  const [text, setText] = useState('');
 
-  const pushMessage = (msg) => {
-    setMessages((prev) => [...prev, { id: Date.now().toString(), ...msg }]);
-    setTimeout(() => {
-      flatRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+  useEffect(() => {
+    setMessages([
+      { id: '0', sender: 'bot', text: '🧙 Quest Master ready. Ask me how to earn XP.' }
+    ]);
+  }, []);
+
+  const send = () => {
+    if (!text) return;
+    setMessages(prev => [
+      ...prev,
+      { id: Date.now().toString(), sender: 'user', text },
+      { id: Date.now() + 'b', sender: 'bot', text: '⚡ +5 XP for staying curious!' }
+    ]);
+    setText('');
   };
-
-  const BotTyping = () => (
-    <View style={{ flexDirection: "row", padding: 10 }}>
-      <View style={styles.dot} />
-      <View style={styles.dot} />
-      <View style={styles.dot} />
-    </View>
-  );
-
-  const handleSend = async () => {
-    if (!input.trim()) return;
-
-    const text = input.trim();
-    pushMessage({ from: "user", text });
-    setInput("");
-
-    setIsTyping(true);
-
-    const lower = text.toLowerCase();
-    let intent = "fallback";
-
-    if (lower.includes("recommend")) intent = "recommend";
-    else if (lower.includes("register")) intent = "register_help";
-
-    if (intent === "recommend") {
-      try {
-        const res = await fetch("http://<YOUR_BACKEND_URL>/api/recommend", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userMessage: text })
-        });
-
-        setIsTyping(false);
-        const data = await res.json();
-
-        if (!res.ok) {
-          pushMessage({ from: "bot", text: "Sorry, I couldn't fetch recommendations." });
-          return;
-        }
-
-        if (Array.isArray(data.recommendations) && data.recommendations.length) {
-          for (const rec of data.recommendations) {
-            const ev = rec.event;
-            pushMessage({
-              from: "bot",
-              text: `${ev.title} — ${ev.date}\n${rec.reason}`
-            });
-          }
-          pushMessage({ from: "bot", text: "Tap any event title to view details." });
-        } else {
-          pushMessage({ from: "bot", text: "No matching events found. Try broadening your preferences." });
-        }
-      } catch (err) {
-        setIsTyping(false);
-        pushMessage({ from: "bot", text: "Network error. Try again later." });
-      }
-
-    } else if (intent === "register_help") {
-      setIsTyping(false);
-      pushMessage({
-        from: "bot",
-        text: "To register, open an event and tap *Register*. If you want, I can register for you — just provide the event ID."
-      });
-
-    } else {
-
-      setIsTyping(false);
-
-      const canned = {
-        "hi": "Hey! How can I assist you today?",
-        "hello": "Hello! Looking for volunteer events?",
-        "what can you do": "I can recommend events, help with registrations, and guide you about certificates."
-      };
-
-      const reply =
-        canned[lower] || "Try asking: 'Recommend events for me'.";
-
-      pushMessage({ from: "bot", text: reply });
-    }
-  };
-
-  const renderItem = ({ item }) => (
-    <View
-      style={{
-        marginVertical: 6,
-        alignSelf: item.from === "user" ? "flex-end" : "flex-start",
-        maxWidth: "85%",
-      }}
-    >
-      <View
-        style={{
-          backgroundColor: item.from === "user" ? "#007bff" : "#222",
-          padding: 12,
-          borderRadius: 12,
-        }}
-      >
-        <Text style={{ color: "#fff" }}>{item.text}</Text>
-      </View>
-    </View>
-  );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={90}
-    >
-      {/* Chat List */}
+    <View style={styles.container}>
       <FlatList
-        ref={flatRef}
         data={messages}
-        keyExtractor={(m) => m.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: 16 }}
+        keyExtractor={i => i.id}
+        renderItem={({ item }) => (
+          <Text style={[
+            styles.msg,
+            item.sender === 'user' ? styles.user : styles.bot
+          ]}>
+            {item.text}
+          </Text>
+        )}
       />
-
-      {/* Typing Animation */}
-      {isTyping && (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
-          <View style={{ alignSelf: "flex-start", backgroundColor: "#222", borderRadius: 10 }}>
-            <BotTyping />
-          </View>
-        </View>
-      )}
-
-      {/* Input Bar */}
       <View style={styles.inputRow}>
-        <TextInput
-          placeholder="Ask something..."
-          placeholderTextColor="#777"
-          value={input}
-          onChangeText={setInput}
-          style={styles.input}
-          onSubmitEditing={handleSend}
-        />
-
-        <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
-          <Text style={{ color: "white", fontWeight: "700" }}>Send</Text>
-        </TouchableOpacity>
+        <TextInput style={styles.input} value={text} onChangeText={setText} />
+        <TouchableOpacity onPress={send}><Text style={styles.send}>Send</Text></TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0D0D0D" },
-
-  inputRow: {
-    flexDirection: "row",
-    padding: 12,
-    borderTopWidth: 1,
-    borderColor: "#222",
-    backgroundColor: "#0D0D0D"
-  },
-
-  input: {
-    flex: 1,
-    backgroundColor: "#111",
-    padding: 12,
-    borderRadius: 8,
-    color: "white",
-  },
-
-  sendBtn: {
-    backgroundColor: "#1E90FF",
-    padding: 12,
-    borderRadius: 8,
-    marginLeft: 8,
-    justifyContent: "center",
-  },
-
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#fff",
-    marginHorizontal: 3,
-    opacity: 0.5,
-  },
+  container: { flex: 1, backgroundColor: '#0f1117' },
+  msg: { margin: 8, padding: 12, borderRadius: 12 },
+  user: { alignSelf: 'flex-end', backgroundColor: '#8b5cf6', color: '#fff' },
+  bot: { alignSelf: 'flex-start', backgroundColor: '#1a1d2e', color: '#fff' },
+  inputRow: { flexDirection: 'row', padding: 8 },
+  input: { flex: 1, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 12 },
+  send: { marginLeft: 8, color: '#8b5cf6', fontWeight: 'bold' },
 });
+
+export default ChatbotScreen;
