@@ -1,17 +1,69 @@
 import axios from "axios";
-import { getToken } from "../redux/authSlice"; // or however you get JWT
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_BASE = "http://192.168.0.104:5000/api"; // replace with your backend IP
+// IMPORTANT:
+// Base URL should NOT include /api
+// Routes already include it
+export const API_BASE_URL = "http://192.168.0.104:5000";
 
-export const changePassword = async (oldPassword, newPassword, token) => {
-  try {
-    const res = await axios.put(
-      `${API_BASE}/security/change-password`,
-      { oldPassword, newPassword },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    return res.data;
-  } catch (err) {
-    throw err.response?.data?.message || err.message;
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+/* ============================
+   REQUEST INTERCEPTOR
+   (inject auth token automatically)
+============================ */
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      // Try NGO token first
+      const ngoToken = await AsyncStorage.getItem("ngoToken");
+
+      // Fallback to student token if needed
+      const studentToken = await AsyncStorage.getItem("token");
+
+      const token = ngoToken || studentToken;
+
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      if (__DEV__) {
+        console.log("🛰️ API Request:", config.method?.toUpperCase(), config.url);
+        if (config.data) console.log("📦 Payload:", config.data);
+      }
+
+      return config;
+    } catch (err) {
+      console.warn("Auth token injection failed:", err);
+      return config;
+    }
+  },
+  (error) => Promise.reject(error)
+);
+
+/* ============================
+   RESPONSE INTERCEPTOR
+============================ */
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const message =
+      error?.response?.data?.message ||
+      error?.response?.data?.errors?.[0]?.msg ||
+      error?.message ||
+      "Network request failed";
+
+    if (__DEV__) {
+      console.error("❌ API Error:", message);
+    }
+
+    return Promise.reject(message);
   }
-};
+);
+
+export default api;

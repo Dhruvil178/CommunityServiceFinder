@@ -1,3 +1,4 @@
+// src/store/authSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_ENDPOINTS, apiLog } from '../config/config';
@@ -8,11 +9,13 @@ export const checkAuthState = createAsyncThunk(
     try {
       const token = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');
+      const userType = await AsyncStorage.getItem('userType');
 
       if (token && userData) {
         return {
           token,
           user: JSON.parse(userData),
+          userType: userType || 'student'
         };
       }
       return null;
@@ -23,6 +26,7 @@ export const checkAuthState = createAsyncThunk(
   }
 );
 
+// Student Registration
 export const register = createAsyncThunk(
   'auth/register',
   async ({ name, email, password }, { rejectWithValue }) => {
@@ -36,7 +40,6 @@ export const register = createAsyncThunk(
       });
 
       const data = await res.json();
-      console.log('UPDATE PROFILE RESPONSE 👉', data);
 
       if (!res.ok) {
         return rejectWithValue(data.message || 'Registration failed');
@@ -44,8 +47,9 @@ export const register = createAsyncThunk(
 
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      await AsyncStorage.setItem('userType', 'student');
 
-      return data;
+      return { ...data, userType: 'student' };
     } catch (err) {
       console.log('Register error:', err);
       return rejectWithValue('Network error');
@@ -53,9 +57,7 @@ export const register = createAsyncThunk(
   }
 );
 
-/* ============================
-   Login
-============================ */
+// Student Login
 export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
@@ -76,8 +78,9 @@ export const login = createAsyncThunk(
 
       await AsyncStorage.setItem('token', data.token);
       await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      await AsyncStorage.setItem('userType', 'student');
 
-      return data;
+      return { ...data, userType: 'student' };
     } catch (err) {
       console.log('Login error:', err);
       return rejectWithValue('Network error');
@@ -85,18 +88,75 @@ export const login = createAsyncThunk(
   }
 );
 
-/* ============================
-   Update Profile (ASYNC)
-============================ */
+// NGO Registration
+export const registerNGO = createAsyncThunk(
+  'auth/registerNGO',
+  async (ngoData, { rejectWithValue }) => {
+    try {
+      apiLog(API_ENDPOINTS.NGO_REGISTER, 'POST', { email: ngoData.email });
+      const res = await fetch(API_ENDPOINTS.NGO_REGISTER, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(ngoData),
+});
+      const data = await res.json();
+
+      if (!res.ok) {
+        return rejectWithValue(data.message || 'NGO registration failed');
+      }
+
+      await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.ngo));
+      await AsyncStorage.setItem('userType', 'ngo');
+
+      return { user: data.ngo, token: data.token, userType: 'ngo' };
+    } catch (err) {
+      console.log('NGO Register error:', err);
+      return rejectWithValue('Network error');
+    }
+  }
+);
+
+// NGO Login
+export const loginNGO = createAsyncThunk(
+  'auth/loginNGO',
+  async ({ email, password }, { rejectWithValue }) => {
+    try {
+      apiLog(API_ENDPOINTS.NGO_LOGIN, 'POST', { email });
+      const res = await fetch(API_ENDPOINTS.NGO_LOGIN, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password }),
+});
+      const data = await res.json();
+
+      if (!res.ok) {
+        return rejectWithValue(data.message || 'Invalid credentials');
+      }
+
+      await AsyncStorage.setItem('token', data.token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.ngo));
+      await AsyncStorage.setItem('userType', 'ngo');
+
+      return { user: data.ngo, token: data.token, userType: 'ngo' };
+    } catch (err) {
+      console.log('NGO Login error:', err);
+      return rejectWithValue('Network error');
+    }
+  }
+);
+
+// Update Profile
 export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
   async (profileData, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
+      const { token, userType } = getState().auth;
+      const endpoint = userType === 'ngo' ? API_ENDPOINTS.NGO_UPDATE_PROFILE : API_ENDPOINTS.UPDATE_PROFILE;
 
-      apiLog(API_ENDPOINTS.UPDATE_PROFILE, 'PUT', profileData);
+      apiLog(endpoint, 'PUT', profileData);
 
-      const res = await fetch(API_ENDPOINTS.UPDATE_PROFILE, {
+      const res = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -111,9 +171,10 @@ export const updateProfile = createAsyncThunk(
         return rejectWithValue(data.message || 'Update failed');
       }
 
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+      const updatedUser = userType === 'ngo' ? data.ngo : data.user;
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
 
-      return data.user;
+      return updatedUser;
     } catch (err) {
       console.log('Update profile error:', err);
       return rejectWithValue('Network error');
@@ -121,26 +182,23 @@ export const updateProfile = createAsyncThunk(
   }
 );
 
-/* ============================
-   Logout
-============================ */
+// Logout
 export const logout = createAsyncThunk(
   'auth/logout',
   async () => {
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('userType');
     return null;
   }
 );
 
-/* ============================
-   Slice
-============================ */
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
     token: null,
+    userType: null, // 'student' or 'ngo'
     isAuthenticated: false,
     isLoading: false,
     error: null,
@@ -149,10 +207,13 @@ const authSlice = createSlice({
     clearError(state) {
       state.error = null;
     },
+    setUserType(state, action) {
+      state.userType = action.payload;
+    },
   },
   extraReducers: builder => {
     builder
-      /* Auth check */
+      // Check Auth State
       .addCase(checkAuthState.pending, state => {
         state.isLoading = true;
       })
@@ -161,6 +222,7 @@ const authSlice = createSlice({
         if (action.payload) {
           state.user = action.payload.user;
           state.token = action.payload.token;
+          state.userType = action.payload.userType;
           state.isAuthenticated = true;
         }
       })
@@ -169,7 +231,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
       })
 
-      /* Register */
+      // Student Register
       .addCase(register.pending, state => {
         state.isLoading = true;
         state.error = null;
@@ -178,6 +240,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.userType = 'student';
         state.isAuthenticated = true;
       })
       .addCase(register.rejected, (state, action) => {
@@ -185,7 +248,7 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
 
-      /* Login */
+      // Student Login
       .addCase(login.pending, state => {
         state.isLoading = true;
         state.error = null;
@@ -194,6 +257,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.userType = 'student';
         state.isAuthenticated = true;
       })
       .addCase(login.rejected, (state, action) => {
@@ -201,7 +265,41 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
 
-      /* Update Profile */
+      // NGO Register
+      .addCase(registerNGO.pending, state => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(registerNGO.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.userType = 'ngo';
+        state.isAuthenticated = true;
+      })
+      .addCase(registerNGO.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // NGO Login
+      .addCase(loginNGO.pending, state => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginNGO.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.userType = 'ngo';
+        state.isAuthenticated = true;
+      })
+      .addCase(loginNGO.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Update Profile
       .addCase(updateProfile.pending, state => {
         state.isLoading = true;
         state.error = null;
@@ -215,15 +313,16 @@ const authSlice = createSlice({
         state.error = action.payload;
       })
 
-      /* Logout */
+      // Logout
       .addCase(logout.fulfilled, state => {
         state.user = null;
         state.token = null;
+        state.userType = null;
         state.isAuthenticated = false;
         state.error = null;
       });
   },
 });
 
-export const { clearError } = authSlice.actions;
+export const { clearError, setUserType } = authSlice.actions;
 export default authSlice.reducer;
