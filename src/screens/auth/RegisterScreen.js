@@ -4,7 +4,7 @@ import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } f
 import { TextInput, Button, Title, Paragraph, Card, useTheme } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { registerStudent } from '../../store/authSlice';
+import { register } from '../../store/authSlice';
 
 const RegisterScreen = ({ navigation }) => {
   const theme = useTheme();
@@ -28,17 +28,20 @@ const RegisterScreen = ({ navigation }) => {
     }
 
     try {
-      await dispatch(
-        registerStudent({ name, email, password })
-      ).unwrap();
+    await dispatch(
+      register({ name, email, password })
+    ).unwrap();
 
-      Alert.alert('Success', 'Student registration successful!');
-      navigation.navigate('Login');
-    } catch (err) {
-      Alert.alert('Error', err || 'Registration failed');
-    }
-  };
-
+    Alert.alert('Success', 'Student registration successful!');
+    navigation.navigate('Login');
+  } catch (err) {
+    console.log("REGISTER ERROR:", err);
+    Alert.alert(
+      'Error',
+      err?.message || err || 'Registration failed'
+    );
+  }
+};
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>

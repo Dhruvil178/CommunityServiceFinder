@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 // IMPORTANT:
 // Base URL should NOT include /api
 // Routes already include it
-export const API_BASE_URL = "http://192.168.0.104:5000";
+export const API_BASE_URL = "http://192.168.0.106:5000";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -52,11 +52,29 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message =
-      error?.response?.data?.message ||
-      error?.response?.data?.errors?.[0]?.msg ||
-      error?.message ||
-      "Network request failed";
+    let message = "Something went wrong";
+
+if (error?.response?.data) {
+  const data = error.response.data;
+
+  if (typeof data.message === "string") {
+    message = data.message;
+  } 
+  else if (Array.isArray(data.errors)) {
+    message = data.errors.map(err => err.msg).join(", ");
+  } 
+  else if (typeof data.message === "object") {
+    message = Object.values(data.message).join(", ");
+  }
+} else if (error?.message) {
+  message = error.message;
+}
+
+if (__DEV__) {
+  console.error("❌ API Error:", message);
+}
+
+return Promise.reject(message);
 
     if (__DEV__) {
       console.error("❌ API Error:", message);

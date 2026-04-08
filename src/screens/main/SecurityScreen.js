@@ -5,7 +5,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { updateUser } from '../../store/userSlice';
 
-const BASE_URL = 'http://192.168.0.104:5000/api';
+const BASE_URL = 'http://192.168.0.106:5000/api';
 
 const SecurityScreen = () => {
   const dispatch = useDispatch();
