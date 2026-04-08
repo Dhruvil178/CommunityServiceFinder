@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 
 import authRoutes from './routes/authRoutes.js';
 import ngoRoutes from './routes/ngoRoutes.js';
+import ngoAuthRoutes from './routes/ngoAuthRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
@@ -34,7 +35,8 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api', authRoutes);            // /api/auth/*
-app.use('/api/ngo', ngoRoutes);         // /api/ngo/*
+app.use('/api/ngo', ngoAuthRoutes);   // auth (login/register)
+app.use('/api/ngo', ngoRoutes);       // protected NGO routes
 app.use('/api', eventRoutes);           // /api/events/*
 app.use('/api', profileRoutes);         // /api/profile
 app.use('/api', securityRoutes);        // /api/security/*

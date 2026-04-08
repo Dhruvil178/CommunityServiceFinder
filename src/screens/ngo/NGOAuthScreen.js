@@ -19,7 +19,8 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { loginNGO, registerNGO } from '../../store/authSlice';
+import { loginNGO } from '../../store/authSlice';
+import { registerNGO as registerNGOService  } from '../../services/AuthService';
 
 const NGOAuthScreen = ({ navigation }) => {
   const theme = useTheme();
@@ -71,37 +72,37 @@ const NGOAuthScreen = ({ navigation }) => {
   };
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !organizationName || !registrationNumber) {
-      Alert.alert('Error', 'Please fill in all required fields');
-      return;
-    }
+  if (!name || !email || !password || !organizationName || !registrationNumber) {
+    Alert.alert('Error', 'Please fill in all required fields');
+    return;
+  }
 
-    if (selectedCategories.length === 0) {
-      Alert.alert('Error', 'Select at least one category');
-      return;
-    }
+  if (selectedCategories.length === 0) {
+    Alert.alert('Error', 'Select at least one category');
+    return;
+  }
 
-    try {
-      await dispatch(
-        registerNGO({
-          name,
-          email,
-          password,
-          organizationName,
-          registrationNumber,
-          description,
-          contactNumber,
-          website,
-          categories: selectedCategories,
-        })
-      ).unwrap();
+  try {
+    const data = await registerNGOService({
+      name,
+      email,
+      password,
+      organizationName,
+      registrationNumber,
+      description,
+      contactNumber,
+      website,
+      categories: selectedCategories,
+    });
 
-      Alert.alert('Success', 'NGO registered successfully');
-    } catch (err) {
-      Alert.alert('Registration Failed', err || 'Try again');
-    }
-  };
+    console.log("NGO REGISTER SUCCESS:", data);
 
+    Alert.alert('Success', 'NGO registered successfully');
+  } catch (err) {
+    console.log("NGO REGISTER ERROR:", err?.response?.data || err);
+    Alert.alert('Error', err?.response?.data?.message || 'Failed');
+  }
+};
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView

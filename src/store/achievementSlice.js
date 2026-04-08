@@ -5,24 +5,72 @@ const initialState = {
   recentlyUnlocked: null,
 };
 
-const achievements = {
+// ✅ CLEAN + FULL ACHIEVEMENTS OBJECT
+export const achievements = {
+  // XP & Level
   FIRST_XP: {
     id: 'FIRST_XP',
     title: 'First Steps',
-    description: 'Gain your first XP',
+    description: 'Earn your first XP point',
+    icon: '🎯',
+    rarity: 'common',
     rewardCoins: 10,
   },
   LEVEL_5: {
     id: 'LEVEL_5',
     title: 'Rising Star',
     description: 'Reach Level 5',
-    rewardCoins: 100,
+    icon: '⭐',
+    rarity: 'rare',
+    rewardCoins: 50,
   },
-  XP_500: {
-    id: 'XP_500',
-    title: 'XP Grinder',
-    description: 'Earn 500 total XP',
-    rewardCoins: 75,
+  LEVEL_10: {
+    id: 'LEVEL_10',
+    title: 'Veteran Volunteer',
+    description: 'Reach Level 10',
+    icon: '🛡️',
+    rarity: 'epic',
+    rewardCoins: 150,
+  },
+
+  // Registrations
+  FIRST_REGISTRATION: {
+    id: 'FIRST_REGISTRATION',
+    title: 'Ready to Serve',
+    description: 'Register for your first event',
+    icon: '📋',
+    rarity: 'common',
+    rewardCoins: 15,
+  },
+
+  // Completions
+  FIRST_COMPLETION: {
+    id: 'FIRST_COMPLETION',
+    title: 'Boots on the Ground',
+    description: 'Complete your first event',
+    icon: '✅',
+    rarity: 'common',
+    rewardCoins: 25,
+  },
+
+  // Certificates
+  FIRST_CERTIFICATE: {
+    id: 'FIRST_CERTIFICATE',
+    title: 'Certified Volunteer',
+    description: 'Receive your first certificate',
+    icon: '🎓',
+    rarity: 'common',
+    rewardCoins: 30,
+  },
+
+  // Chatbot
+  CHATBOT_FIRST: {
+    id: 'CHATBOT_FIRST',
+    title: 'AI Explorer',
+    description: 'Send your first message to the chatbot',
+    icon: '🤖',
+    rarity: 'common',
+    rewardCoins: 10,
   },
 };
 
@@ -33,6 +81,7 @@ const achievementSlice = createSlice({
     unlockAchievement(state, action) {
       const achievement = action.payload;
 
+      // ✅ prevent duplicate unlock
       if (state.unlocked[achievement.id]) return;
 
       state.unlocked[achievement.id] = {
@@ -54,5 +103,4 @@ export const {
   clearRecentAchievement,
 } = achievementSlice.actions;
 
-export { achievements };
 export default achievementSlice.reducer;

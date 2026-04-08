@@ -1,14 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const initialState = {
-  xp: 0,
-  level: 1,
-  coins: 0,
-  lastLevelUp: null,
-};
-
+const initialState = { xp: 0, level: 1, coins: 0, streak: 0, lastLevelUp: null };
 const xpForNextLevel = level => level * 100;
-
 const gameSlice = createSlice({
   name: 'game',
   initialState,
