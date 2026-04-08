@@ -37,7 +37,7 @@ app.get('/', (req, res) => {
 app.use('/api', authRoutes);            // /api/auth/*
 app.use('/api/ngo', ngoAuthRoutes);   // auth (login/register)
 app.use('/api/ngo', ngoRoutes);       // protected NGO routes
-app.use('/api', eventRoutes);           // /api/events/*
+app.use('/api/events', eventRoutes);           // /api/events/*
 app.use('/api', profileRoutes);         // /api/profile
 app.use('/api', securityRoutes);        // /api/security/*
 app.use('/api/chatbot', chatbotRoutes); // /api/chatbot/chat

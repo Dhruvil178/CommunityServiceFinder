@@ -1,36 +1,129 @@
-// ============================================================
-// ADD THESE ROUTES TO YOUR EXISTING backend/routes/ngoRoutes.js
-// (paste below your existing router.put("/events/:eventId") block)
-// ============================================================
 import express from 'express';
+import Anthropic from '@anthropic-ai/sdk';
+import nodemailer from 'nodemailer';
 import Event from '../models/Event.js';
+import NGO from '../models/NGO.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
-import Anthropic from "@anthropic-ai/sdk";
-import nodemailer from "nodemailer";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import NGO from "../models/NGO.js";
-
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 
 const router = express.Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// ─── Email transporter (uses env vars, works with Gmail or any SMTP) ────────
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER,   // your Gmail address
-    pass: process.env.EMAIL_PASS,   // Gmail App Password (not your login password)
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
-/* ============================
-   GET REGISTRATIONS FOR AN EVENT
-   GET /ngo/events/:eventId/registrations
-   Returns full student list with attendance status
-============================ */
-router.get("/events/:eventId/registrations", requireAuth, async (req, res) => {
+const EVENT_CATEGORIES = [
+  'Environmental',
+  'Education',
+  'Health',
+  'Community Support',
+  'Animal Welfare',
+  'Technology',
+];
+
+const buildEventPayload = (body, ngo, existingEvent = null) => {
+  const spotsTotal = Number(body.spotsTotal);
+  const registrationsCount = existingEvent?.registrations?.length || 0;
+
+  return {
+    title: body.title?.trim(),
+    description: body.description?.trim(),
+    category: body.category,
+    city: body.city?.trim(),
+    location: body.location?.trim(),
+    date: body.date?.trim(),
+    time: body.time?.trim(),
+    duration: body.duration?.trim(),
+    spotsTotal,
+    spotsAvailable: existingEvent
+      ? Math.max(0, spotsTotal - registrationsCount)
+      : spotsTotal,
+    xpReward: Number(body.xpReward) || 50,
+    coinsReward: Number(body.coinsReward) || 10,
+    image: body.image?.trim(),
+    skillsRequired: Array.isArray(body.skillsRequired) ? body.skillsRequired : [],
+    tags: Array.isArray(body.tags) ? body.tags : [],
+    status: body.status || existingEvent?.status || 'upcoming',
+    ngoId: existingEvent?.ngoId || ngo._id,
+    organizer: existingEvent?.organizer || ngo.organizationName,
+  };
+};
+
+const validateEventPayload = (body, existingEvent = null) => {
+  const requiredFields = [
+    ['title', 'Event title is required'],
+    ['description', 'Description is required'],
+    ['city', 'City is required'],
+    ['location', 'Location is required'],
+    ['date', 'Date is required'],
+    ['time', 'Time is required'],
+    ['duration', 'Duration is required'],
+  ];
+
+  for (const [field, message] of requiredFields) {
+    if (!body[field]?.toString().trim()) return message;
+  }
+
+  if (!EVENT_CATEGORIES.includes(body.category)) {
+    return 'Please choose a valid category';
+  }
+
+  const spotsTotal = Number(body.spotsTotal);
+  if (!Number.isInteger(spotsTotal) || spotsTotal < 1) {
+    return 'Enter a valid number of spots';
+  }
+
+  const registrationsCount = existingEvent?.registrations?.length || 0;
+  if (spotsTotal < registrationsCount) {
+    return `Total spots cannot be less than current registrations (${registrationsCount})`;
+  }
+
+  return null;
+};
+
+router.post('/events', requireAuth, async (req, res) => {
+  try {
+    const ngo = await NGO.findById(req.user.id);
+    if (!ngo) {
+      return res.status(404).json({ message: 'NGO not found' });
+    }
+
+    const validationError = validateEventPayload(req.body);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const event = await Event.create(buildEventPayload(req.body, ngo));
+
+    await NGO.findByIdAndUpdate(ngo._id, {
+      $addToSet: { eventsCreated: event._id },
+    });
+
+    res.status(201).json({
+      message: 'Event created successfully',
+      event,
+    });
+  } catch (error) {
+    console.error('Create event error:', error);
+    res.status(500).json({ message: 'Failed to create event' });
+  }
+});
+
+router.get('/events', requireAuth, async (req, res) => {
+  try {
+    const events = await Event.find({ ngoId: req.user.id }).sort({ createdAt: -1 });
+    res.json({ events });
+  } catch (error) {
+    console.error('Fetch NGO events error:', error);
+    res.status(500).json({ message: 'Failed to fetch events' });
+  }
+});
+
+router.get('/events/:eventId', requireAuth, async (req, res) => {
   try {
     const event = await Event.findOne({
       _id: req.params.eventId,
@@ -38,7 +131,59 @@ router.get("/events/:eventId/registrations", requireAuth, async (req, res) => {
     });
 
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    res.json({ event });
+  } catch (error) {
+    console.error('Fetch event details error:', error);
+    res.status(500).json({ message: 'Failed to fetch event details' });
+  }
+});
+
+router.put('/events/:eventId', requireAuth, async (req, res) => {
+  try {
+    const ngo = await NGO.findById(req.user.id);
+    if (!ngo) {
+      return res.status(404).json({ message: 'NGO not found' });
+    }
+
+    const event = await Event.findOne({
+      _id: req.params.eventId,
+      ngoId: req.user.id,
+    });
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    const validationError = validateEventPayload(req.body, event);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    Object.assign(event, buildEventPayload(req.body, ngo, event));
+    await event.save();
+
+    res.json({
+      message: 'Event updated successfully',
+      event,
+    });
+  } catch (error) {
+    console.error('Update event error:', error);
+    res.status(500).json({ message: 'Failed to update event' });
+  }
+});
+
+router.get('/events/:eventId/registrations', requireAuth, async (req, res) => {
+  try {
+    const event = await Event.findOne({
+      _id: req.params.eventId,
+      ngoId: req.user.id,
+    });
+
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
     }
 
     res.json({
@@ -54,25 +199,20 @@ router.get("/events/:eventId/registrations", requireAuth, async (req, res) => {
       registrations: event.registrations,
       stats: {
         total: event.registrations.length,
-        registered: event.registrations.filter(r => r.status === "registered").length,
+        registered: event.registrations.filter(r => r.status === 'registered').length,
         attended: event.registrations.filter(r => r.attended === true).length,
-        completed: event.registrations.filter(r => r.status === "completed").length,
+        completed: event.registrations.filter(r => r.status === 'completed').length,
         certificatesIssued: event.registrations.filter(r => r.certificateIssued).length,
       },
     });
   } catch (error) {
-    console.error("Get registrations error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error('Get registrations error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-/* ============================
-   MARK STUDENT ATTENDANCE (the "ticker")
-   POST /ngo/events/:eventId/registrations/:registrationId/attendance
-   Body: { attended: true/false }
-============================ */
 router.post(
-  "/events/:eventId/registrations/:registrationId/attendance",
+  '/events/:eventId/registrations/:registrationId/attendance',
   requireAuth,
   async (req, res) => {
     try {
@@ -84,145 +224,125 @@ router.post(
       });
 
       if (!event) {
-        return res.status(404).json({ message: "Event not found" });
+        return res.status(404).json({ message: 'Event not found' });
       }
 
-      // Find the registration within the event's embedded array
       const registration = event.registrations.id(req.params.registrationId);
       if (!registration) {
-        return res.status(404).json({ message: "Registration not found" });
+        return res.status(404).json({ message: 'Registration not found' });
       }
 
-      // Update attendance flag
       registration.attended = attended;
       if (attended) {
         registration.attendedAt = new Date();
-        registration.status = "completed";
+        registration.status = 'completed';
       } else {
-        registration.status = "registered";
+        registration.status = 'registered';
         registration.attendedAt = null;
       }
 
       await event.save();
 
       res.json({
-        message: attended ? "Attendance marked ✓" : "Attendance unmarked",
+        message: attended ? 'Attendance marked' : 'Attendance unmarked',
         registration,
       });
     } catch (error) {
-      console.error("Mark attendance error:", error);
-      res.status(500).json({ message: "Server error" });
+      console.error('Mark attendance error:', error);
+      res.status(500).json({ message: 'Server error' });
     }
   }
 );
 
-/* ============================
-   MARK BULK ATTENDANCE (all present)
-   POST /ngo/events/:eventId/attendance/bulk
-   Body: { registrationIds: [...], attended: true }
-============================ */
-router.post(
-  "/events/:eventId/attendance/bulk",
-  requireAuth,
-  async (req, res) => {
-    try {
-      const { registrationIds, attended } = req.body;
+router.post('/events/:eventId/attendance/bulk', requireAuth, async (req, res) => {
+  try {
+    const { registrationIds, attended } = req.body;
 
-      const event = await Event.findOne({
-        _id: req.params.eventId,
-        ngoId: req.user.id,
-      });
+    const event = await Event.findOne({
+      _id: req.params.eventId,
+      ngoId: req.user.id,
+    });
 
-      if (!event) return res.status(404).json({ message: "Event not found" });
+    if (!event) return res.status(404).json({ message: 'Event not found' });
 
-      let updatedCount = 0;
-      for (const regId of registrationIds) {
-        const registration = event.registrations.id(regId);
-        if (registration) {
-          registration.attended = attended;
-          registration.status = attended ? "completed" : "registered";
-          if (attended) registration.attendedAt = new Date();
-          updatedCount++;
-        }
+    let updatedCount = 0;
+    for (const regId of registrationIds || []) {
+      const registration = event.registrations.id(regId);
+      if (registration) {
+        registration.attended = attended;
+        registration.status = attended ? 'completed' : 'registered';
+        registration.attendedAt = attended ? new Date() : null;
+        updatedCount++;
       }
-
-      await event.save();
-      res.json({ message: `${updatedCount} registrations updated`, updatedCount });
-    } catch (error) {
-      console.error("Bulk attendance error:", error);
-      res.status(500).json({ message: "Server error" });
     }
-  }
-);
 
-/* ============================
-   GENERATE AI CERTIFICATE + SEND EMAIL
-   POST /ngo/events/:eventId/registrations/:registrationId/certificate
-   - Uses Claude to write a personalized certificate
-   - Uses Nodemailer to email it to the student
-============================ */
+    await event.save();
+    res.json({ message: `${updatedCount} registrations updated`, updatedCount });
+  } catch (error) {
+    console.error('Bulk attendance error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.post(
-  "/events/:eventId/registrations/:registrationId/certificate",
+  '/events/:eventId/registrations/:registrationId/certificate',
   requireAuth,
   async (req, res) => {
     try {
       const event = await Event.findOne({
         _id: req.params.eventId,
         ngoId: req.user.id,
-      }).populate("ngoId", "organizationName");
+      }).populate('ngoId', 'organizationName');
 
-      if (!event) return res.status(404).json({ message: "Event not found" });
+      if (!event) return res.status(404).json({ message: 'Event not found' });
 
       const registration = event.registrations.id(req.params.registrationId);
       if (!registration) {
-        return res.status(404).json({ message: "Registration not found" });
+        return res.status(404).json({ message: 'Registration not found' });
       }
 
       if (!registration.attended) {
         return res.status(400).json({
-          message: "Student must be marked as attended before issuing a certificate.",
+          message: 'Student must be marked as attended before issuing a certificate.',
         });
       }
 
       if (registration.certificateIssued) {
-        return res.status(400).json({ message: "Certificate already issued." });
+        return res.status(400).json({ message: 'Certificate already issued.' });
       }
 
-      // ── Step 1: Generate personalized certificate text with Claude ──────────
-      const ngoName =
-        event.ngoId?.organizationName || "the organising NGO";
+      const ngoName = event.ngoId?.organizationName || 'the organising NGO';
 
       const aiPrompt = `
 You are generating an official certificate of participation for a community service event.
-Write a formal, warm, and motivating certificate body (2–3 short paragraphs) for:
+Write a formal, warm, and motivating certificate body (2-3 short paragraphs) for:
 
 Student Name: ${registration.studentName}
 Event Name: ${event.title}
 Event Date: ${event.date}
-Event Category: ${event.category || "Community Service"}
+Event Category: ${event.category || 'Community Service'}
 Location: ${event.location}
 NGO / Organiser: ${ngoName}
-Duration: ${event.duration || "the full event"}
+Duration: ${event.duration || 'the full event'}
 
 The certificate should:
 1. Officially acknowledge participation and completion
 2. Briefly describe the nature of the event
 3. Express appreciation and encouragement for future service
-4. Keep a professional yet warm tone — this is for a college student
+4. Keep a professional yet warm tone - this is for a college student
 
 Return ONLY the certificate body text (no subject line, no HTML, no JSON).
       `.trim();
 
       const aiResponse = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 600,
-        messages: [{ role: "user", content: aiPrompt }],
+        messages: [{ role: 'user', content: aiPrompt }],
       });
 
       const certificateBody =
-        aiResponse.content[0]?.text?.trim() || "Congratulations on your participation!";
+        aiResponse.content[0]?.text?.trim() || 'Congratulations on your participation!';
 
-      // ── Step 2: Build the HTML email with the certificate ────────────────────
       const certificateHtml = `
 <!DOCTYPE html>
 <html>
@@ -272,12 +392,12 @@ Return ONLY the certificate body text (no subject line, no HTML, no JSON).
     <p class="presented-to">This certificate is proudly presented to</p>
     <h2 class="student-name">${registration.studentName}</h2>
 
-    <div class="event-badge">🌱 ${event.title}</div>
+    <div class="event-badge">${event.title}</div>
 
     <div class="cert-body">${certificateBody}</div>
 
     <p style="color:#555; font-size:14px;">
-      📅 ${event.date} &nbsp;|&nbsp; 📍 ${event.location}
+      ${event.date} | ${event.location}
     </p>
 
     <div class="sign-line"></div>
@@ -285,26 +405,24 @@ Return ONLY the certificate body text (no subject line, no HTML, no JSON).
     <p class="sign-role">Authorised Signatory</p>
 
     <p class="footer">
-      Certificate ID: CERT-${Date.now()} &nbsp;·&nbsp;
-      Issued on ${new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}
+      Certificate ID: CERT-${Date.now()} ·
+      Issued on ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
     </p>
   </div>
 </body>
 </html>
       `.trim();
 
-      // ── Step 3: Send email via Nodemailer ────────────────────────────────────
       await transporter.sendMail({
         from: `"${ngoName}" <${process.env.EMAIL_USER}>`,
         to: registration.studentEmail,
-        subject: `🎉 Your Certificate for "${event.title}" — ${ngoName}`,
+        subject: `Your Certificate for "${event.title}" - ${ngoName}`,
         html: certificateHtml,
       });
 
-      // ── Step 4: Mark certificate as issued in DB ─────────────────────────────
       registration.certificateIssued = true;
       registration.certificateIssuedAt = new Date();
-      registration.status = "completed";
+      registration.status = 'completed';
       await event.save();
 
       res.json({
@@ -312,27 +430,24 @@ Return ONLY the certificate body text (no subject line, no HTML, no JSON).
         certificateIssuedAt: registration.certificateIssuedAt,
       });
     } catch (error) {
-      console.error("Certificate generation error:", error);
+      console.error('Certificate generation error:', error);
       res.status(500).json({
-        message: "Failed to generate certificate",
+        message: 'Failed to generate certificate',
         error: error.message,
       });
     }
   }
 );
 
-/* ============================
-   IMPROVED DASHBOARD STATS
-   GET /ngo/dashboard/stats
-   (replace existing basic stats route)
-============================ */
-router.get("/dashboard/stats", requireAuth, async (req, res) => {
+router.get('/dashboard/stats', requireAuth, async (req, res) => {
   try {
     const events = await Event.find({ ngoId: req.user.id });
 
     const now = new Date();
-    const activeEvents   = events.filter(e => e.status === "upcoming" || e.status === "ongoing").length;
-    const completedEvents = events.filter(e => e.status === "completed").length;
+    const activeEvents = events.filter(
+      e => e.status === 'upcoming' || e.status === 'ongoing'
+    ).length;
+    const completedEvents = events.filter(e => e.status === 'completed').length;
 
     const allRegistrations = events.flatMap(e => e.registrations || []);
     const totalRegistrations = allRegistrations.length;
@@ -344,7 +459,6 @@ router.get("/dashboard/stats", requireAuth, async (req, res) => {
         ? Math.round((totalAttended / totalRegistrations) * 100)
         : 0;
 
-    // Events this month
     const thisMonth = events.filter(e => {
       const d = new Date(e.date);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -361,58 +475,9 @@ router.get("/dashboard/stats", requireAuth, async (req, res) => {
       attendanceRate,
     });
   } catch (error) {
-    console.error("Dashboard stats error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error('Dashboard stats error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
+
 export default router;
-// ============================================================
-// ALSO: Add this new event registration route to your
-// backend/routes/eventRoutes.js (student-facing)
-// POST /api/events/:eventId/register
-// ============================================================
-
-// In eventRoutes.js or a new studentRoutes.js:
-/*
-router.post("/events/:eventId/register", requireAuth, async (req, res) => {
-  try {
-    const { studentName, studentEmail, studentPhone, studentCollege, userId } = req.body;
-
-    const event = await Event.findById(req.params.eventId);
-    if (!event) return res.status(404).json({ message: "Event not found" });
-
-    if (event.spotsAvailable <= 0) {
-      return res.status(400).json({ message: "No spots available for this event" });
-    }
-
-    // Check if already registered
-    const alreadyRegistered = event.registrations.some(
-      r => r.studentEmail === studentEmail || r.userId?.toString() === userId
-    );
-    if (alreadyRegistered) {
-      return res.status(400).json({ message: "Already registered for this event" });
-    }
-
-    // Add registration
-    event.registrations.push({
-      userId,
-      studentName,
-      studentEmail,
-      studentPhone,
-      studentCollege,
-      status: "registered",
-      attended: false,
-      certificateIssued: false,
-      registeredAt: new Date(),
-    });
-
-    event.spotsAvailable = Math.max(0, event.spotsAvailable - 1);
-    await event.save();
-
-    res.status(201).json({ message: "Registered successfully!" });
-  } catch (error) {
-    console.error("Event registration error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-*/

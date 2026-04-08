@@ -11,7 +11,15 @@ export const requireAuth = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = { id: decoded.userId };
+    const userId = decoded.userId || decoded.id || decoded.ngoId;
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    req.user = {
+      id: userId,
+      userType: decoded.userType || decoded.type || "user",
+    };
     next();
   } catch (err) {
     res.status(401).json({ message: "Invalid token" });

@@ -39,13 +39,17 @@ const eventSchema = new mongoose.Schema({
     studentName: String,
     studentEmail: String,
     studentPhone: String,
+    studentCollege: String,
     registeredAt: { type: Date, default: Date.now },
+    attended: { type: Boolean, default: false },
+    attendedAt: Date,
     status: {
       type: String,
       enum: ['registered', 'attended', 'completed', 'cancelled'],
       default: 'registered'
     },
     certificateIssued: { type: Boolean, default: false },
+    certificateIssuedAt: Date,
     certificateId: { type: mongoose.Schema.Types.ObjectId, ref: "Certificate" }
   }],
   

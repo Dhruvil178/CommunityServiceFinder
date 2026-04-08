@@ -368,7 +368,7 @@ const NGODashboardScreen = ({ navigation }) => {
               mode="contained"
               style={styles.emptyBtn}
               onPress={() => navigation.navigate('CreateEvent')}
-              icon="add"
+              icon="plus-circle"
             >
               Create First Event
             </Button>
@@ -379,7 +379,7 @@ const NGODashboardScreen = ({ navigation }) => {
       </ScrollView>
 
       <FAB
-        icon="add"
+        icon="plus"
         label="New Event"
         style={styles.fab}
         onPress={() => navigation.navigate('CreateEvent')}

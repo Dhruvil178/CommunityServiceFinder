@@ -1,184 +1,165 @@
 // src/store/ngoSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { API_ENDPOINTS, apiLog } from '../config/config';
+import { API_ENDPOINTS } from '../config/config';
 
-// Create Event
+// ── Helper: Safe JSON parse ───────────────────────────────────────────────
+const safeJson = async (res) => {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+};
+
+// ── Create Event ─────────────────────────────────────────────────────────
 export const createEvent = createAsyncThunk(
   'ngo/createEvent',
   async (eventData, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
-
-      if (!token) {
-        return rejectWithValue('Authentication token missing');
-      }
+      const token = getState().auth?.token;
+      if (!token) return rejectWithValue('No auth token');
 
       const res = await fetch(API_ENDPOINTS.NGO_CREATE_EVENT, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify(eventData),
-});
-      const data = await res.json();
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(eventData),
+      });
 
-      if (!res.ok) {
-        return rejectWithValue(data.message || 'Failed to create event');
-      }
+      const data = await safeJson(res);
+      if (!res.ok) return rejectWithValue(data.message || 'Create failed');
 
       return data.event;
     } catch (err) {
-      console.log('Create event error:', err);
-      return rejectWithValue('Network request failed');
+      console.error('Create event error:', err);
+      return rejectWithValue('Network error');
     }
   }
 );
 
-// Get NGO Events
+// ── Fetch NGO Events ─────────────────────────────────────────────────────
 export const fetchNGOEvents = createAsyncThunk(
   'ngo/fetchEvents',
   async (_, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
+      const token = getState().auth?.token;
+      if (!token) return rejectWithValue('No auth token');
 
       const res = await fetch(API_ENDPOINTS.NGO_GET_EVENTS, {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-});
-      const data = await res.json();
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (!res.ok) {
-        return rejectWithValue(data.message || 'Failed to fetch events');
-      }
+      const data = await safeJson(res);
+      if (!res.ok) return rejectWithValue(data.message || 'Fetch failed');
 
-      return data.events;
+      return data.events || [];
     } catch (err) {
-      console.log('Fetch NGO events error:', err);
-      return rejectWithValue('Network request failed');
+      console.error('Fetch NGO events error:', err);
+      return rejectWithValue('Network error');
     }
   }
 );
 
-// Get Single Event Details with Registrations
+// ── Fetch Event Details ──────────────────────────────────────────────────
 export const fetchEventDetails = createAsyncThunk(
   'ngo/fetchEventDetails',
   async (eventId, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
+      const token = getState().auth?.token;
 
-     const res = await fetch(`${API_ENDPOINTS.NGO_GET_EVENTS}/${eventId}`, {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-});
-      const data = await res.json();
+      const res = await fetch(`${API_ENDPOINTS.NGO_GET_EVENTS}/${eventId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (!res.ok) {
-        return rejectWithValue(data.message || 'Failed to fetch event details');
-      }
+      const data = await safeJson(res);
+      if (!res.ok) return rejectWithValue(data.message || 'Fetch failed');
 
       return data.event;
     } catch (err) {
-      console.log('Fetch event details error:', err);
+      console.error('Fetch event details error:', err);
       return rejectWithValue('Network error');
     }
   }
 );
 
-// Update Event
+// ── Update Event ─────────────────────────────────────────────────────────
 export const updateEvent = createAsyncThunk(
   'ngo/updateEvent',
   async ({ eventId, updates }, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
+      const token = getState().auth?.token;
 
-     const res = await fetch(`${API_ENDPOINTS.NGO_GET_EVENTS}/${eventId}`, {
-  method: 'PUT',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify(updates),
-});
-      const data = await res.json();
+      const res = await fetch(`${API_ENDPOINTS.NGO_GET_EVENTS}/${eventId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updates),
+      });
 
-      if (!res.ok) {
-        return rejectWithValue(data.message || 'Failed to update event');
-      }
+      const data = await safeJson(res);
+      if (!res.ok) return rejectWithValue(data.message || 'Update failed');
 
       return data.event;
     } catch (err) {
-      console.log('Update event error:', err);
+      console.error('Update event error:', err);
       return rejectWithValue('Network error');
     }
   }
 );
 
-// Generate Certificate for Student
+// ── Generate Certificate ────────────────────────────────────────────────
 export const generateCertificate = createAsyncThunk(
   'ngo/generateCertificate',
   async ({ eventId, registrationId }, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
-      
+      const token = getState().auth?.token;
+
       const res = await fetch(
-        `${API_ENDPOINTS.NGO_GET_EVENTS}/${eventId}/complete/${registrationId}`,
+        `${API_ENDPOINTS.NGO_GET_EVENTS}/${eventId}/registrations/${registrationId}/certificate`,
         {
           method: 'POST',
-          headers: {
-  'Content-Type': 'application/json',
-}
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
-      const data = await res.json();
+      const data = await safeJson(res);
+      if (!res.ok) return rejectWithValue(data.message || 'Certificate failed');
 
-      if (!res.ok) {
-        return rejectWithValue(data.message || 'Failed to generate certificate');
-      }
-
-      return { eventId, registrationId, certificate: data.certificate };
+      return { eventId, registrationId };
     } catch (err) {
-      console.log('Generate certificate error:', err);
+      console.error('Generate certificate error:', err);
       return rejectWithValue('Network error');
     }
   }
 );
 
-// Get Dashboard Stats
+// ── Dashboard Stats ─────────────────────────────────────────────────────
 export const fetchDashboardStats = createAsyncThunk(
   'ngo/fetchDashboardStats',
   async (_, { getState, rejectWithValue }) => {
     try {
-      const { token } = getState().auth;
-      
+      const token = getState().auth?.token;
+
       const res = await fetch(API_ENDPOINTS.NGO_DASHBOARD_STATS, {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-});
-      const data = await res.json();
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (!res.ok) {
-        return rejectWithValue(data.message || 'Failed to fetch stats');
-      }
+      const data = await safeJson(res);
+      if (!res.ok) return rejectWithValue(data.message || 'Stats failed');
 
-      return data.stats;
+      return data; // backend sends flat object
     } catch (err) {
-      console.log('Fetch stats error:', err);
+      console.error('Fetch stats error:', err);
       return rejectWithValue('Network error');
     }
   }
 );
 
+// ── Slice ───────────────────────────────────────────────────────────────
 const ngoSlice = createSlice({
   name: 'ngo',
   initialState: {
@@ -189,94 +170,53 @@ const ngoSlice = createSlice({
     error: null,
   },
   reducers: {
-    clearError(state) {
-      state.error = null;
-    },
-    clearSelectedEvent(state) {
-      state.selectedEvent = null;
-    },
+    clearError: (state) => { state.error = null; },
+    clearSelectedEvent: (state) => { state.selectedEvent = null; },
   },
-  extraReducers: builder => {
+  extraReducers: (builder) => {
     builder
-      // Create Event
-      .addCase(createEvent.pending, state => {
-        state.isLoading = true;
-        state.error = null;
+      .addCase(fetchNGOEvents.pending, (s) => { s.isLoading = true; })
+      .addCase(fetchNGOEvents.fulfilled, (s, a) => {
+        s.isLoading = false;
+        s.error = null;
+        s.events = a.payload;
       })
-      .addCase(createEvent.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.events.unshift(action.payload);
-      })
-      .addCase(createEvent.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+      .addCase(fetchNGOEvents.rejected, (s, a) => {
+        s.isLoading = false;
+        s.error = a.payload;
       })
 
-      // Fetch NGO Events
-      .addCase(fetchNGOEvents.pending, state => {
-        state.isLoading = true;
-        state.error = null;
+      .addCase(createEvent.pending, (s) => {
+        s.isLoading = true;
+        s.error = null;
       })
-      .addCase(fetchNGOEvents.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.events = action.payload;
+      .addCase(createEvent.fulfilled, (s, a) => {
+        s.isLoading = false;
+        s.error = null;
+        if (a.payload) s.events.unshift(a.payload);
       })
-      .addCase(fetchNGOEvents.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
-      })
-
-      // Fetch Event Details
-      .addCase(fetchEventDetails.pending, state => {
-        state.isLoading = true;
-        state.error = null;
-      })
-      .addCase(fetchEventDetails.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.selectedEvent = action.payload;
-      })
-      .addCase(fetchEventDetails.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+      .addCase(createEvent.rejected, (s, a) => {
+        s.isLoading = false;
+        s.error = a.payload;
       })
 
-      // Update Event
-      .addCase(updateEvent.fulfilled, (state, action) => {
-        const index = state.events.findIndex(e => e._id === action.payload._id);
-        if (index !== -1) {
-          state.events[index] = action.payload;
-        }
-        if (state.selectedEvent?._id === action.payload._id) {
-          state.selectedEvent = action.payload;
-        }
+      .addCase(updateEvent.pending, (s) => {
+        s.isLoading = true;
+        s.error = null;
+      })
+      .addCase(updateEvent.fulfilled, (s, a) => {
+        s.isLoading = false;
+        s.error = null;
+        const i = s.events.findIndex(e => e._id === a.payload._id);
+        if (i !== -1) s.events[i] = a.payload;
+      })
+      .addCase(updateEvent.rejected, (s, a) => {
+        s.isLoading = false;
+        s.error = a.payload;
       })
 
-      // Generate Certificate
-      .addCase(generateCertificate.fulfilled, (state, action) => {
-        // Update the registration in selected event
-        if (state.selectedEvent) {
-          const reg = state.selectedEvent.registrations.find(
-            r => r._id === action.payload.registrationId
-          );
-          if (reg) {
-            reg.status = 'completed';
-            reg.certificateIssued = true;
-            reg.certificateId = action.payload.certificate._id;
-          }
-        }
-      })
-
-      // Fetch Dashboard Stats
-      .addCase(fetchDashboardStats.pending, state => {
-        state.isLoading = true;
-      })
-      .addCase(fetchDashboardStats.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.dashboardStats = action.payload;
-      })
-      .addCase(fetchDashboardStats.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.payload;
+      .addCase(fetchDashboardStats.fulfilled, (s, a) => {
+        s.dashboardStats = a.payload;
       });
   },
 });
