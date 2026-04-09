@@ -1,20 +1,13 @@
 import express from 'express';
-import Anthropic from '@anthropic-ai/sdk';
-import nodemailer from 'nodemailer';
 import Event from '../models/Event.js';
 import NGO from '../models/NGO.js';
+import User from '../models/User.js';
+import Attendance from '../models/Attendance.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
+import { generateCertificateContent } from '../services/certificateService.js';
+import { sendCertificateEmail } from '../services/emailService.js';
 
 const router = express.Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
 
 const EVENT_CATEGORIES = [
   'Environmental',
@@ -304,7 +297,20 @@ router.post(
         return res.status(404).json({ message: 'Registration not found' });
       }
 
-      if (!registration.attended) {
+      const studentId = registration.userId?.toString();
+      if (!studentId) {
+        return res.status(400).json({
+          message: 'Registration is not linked to a student account.',
+        });
+      }
+
+      const isPresentInAttendance = await Attendance.findOne({
+        eventId: event._id,
+        studentId,
+        status: 'present',
+      });
+
+      if (!registration.attended && !isPresentInAttendance) {
         return res.status(400).json({
           message: 'Student must be marked as attended before issuing a certificate.',
         });
@@ -314,113 +320,23 @@ router.post(
         return res.status(400).json({ message: 'Certificate already issued.' });
       }
 
-      const ngoName = event.ngoId?.organizationName || 'the organising NGO';
+      const student = await User.findById(studentId).select('name email');
+      const recipientEmail = student?.email || registration.studentEmail;
 
-      const aiPrompt = `
-You are generating an official certificate of participation for a community service event.
-Write a formal, warm, and motivating certificate body (2-3 short paragraphs) for:
+      if (!recipientEmail) {
+        return res.status(400).json({ message: 'Student email is missing.' });
+      }
 
-Student Name: ${registration.studentName}
-Event Name: ${event.title}
-Event Date: ${event.date}
-Event Category: ${event.category || 'Community Service'}
-Location: ${event.location}
-NGO / Organiser: ${ngoName}
-Duration: ${event.duration || 'the full event'}
-
-The certificate should:
-1. Officially acknowledge participation and completion
-2. Briefly describe the nature of the event
-3. Express appreciation and encouragement for future service
-4. Keep a professional yet warm tone - this is for a college student
-
-Return ONLY the certificate body text (no subject line, no HTML, no JSON).
-      `.trim();
-
-      const aiResponse = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 600,
-        messages: [{ role: 'user', content: aiPrompt }],
+      const certificateText = await generateCertificateContent({
+        studentName: student?.name || registration.studentName || 'Student',
+        eventName: event.title,
+        date: event.date,
       });
 
-      const certificateBody =
-        aiResponse.content[0]?.text?.trim() || 'Congratulations on your participation!';
-
-      const certificateHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8"/>
-  <style>
-    body { font-family: Georgia, serif; background: #f5f0e8; margin: 0; padding: 20px; }
-    .certificate {
-      background: #fff;
-      border: 8px double #8b6914;
-      max-width: 680px;
-      margin: 0 auto;
-      padding: 48px;
-      text-align: center;
-    }
-    .org-name { font-size: 13px; color: #6b7280; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
-    .cert-title { font-size: 36px; font-weight: bold; color: #1a1a1a; margin-bottom: 4px; }
-    .cert-subtitle { font-size: 14px; color: #6b7280; margin-bottom: 28px; letter-spacing: 1px; }
-    .divider { border: none; border-top: 2px solid #e5c76b; margin: 24px auto; width: 200px; }
-    .presented-to { font-size: 14px; color: #555; margin-bottom: 6px; }
-    .student-name { font-size: 30px; font-style: italic; color: #1a1a1a; margin-bottom: 24px; }
-    .cert-body { font-size: 15px; color: #374151; line-height: 1.8; white-space: pre-line; text-align: left; margin-bottom: 28px; }
-    .event-badge {
-      display: inline-block;
-      background: #fef3c7;
-      border: 1px solid #e5c76b;
-      border-radius: 8px;
-      padding: 8px 24px;
-      font-size: 16px;
-      color: #92400e;
-      font-weight: bold;
-      margin-bottom: 24px;
-    }
-    .footer { font-size: 12px; color: #9ca3af; margin-top: 32px; }
-    .sign-line { border-top: 1px solid #d1d5db; width: 180px; margin: 32px auto 4px; }
-    .sign-name { font-size: 14px; color: #374151; font-weight: bold; }
-    .sign-role { font-size: 12px; color: #6b7280; }
-  </style>
-</head>
-<body>
-  <div class="certificate">
-    <p class="org-name">${ngoName}</p>
-    <h1 class="cert-title">Certificate of Participation</h1>
-    <p class="cert-subtitle">COMMUNITY SERVICE ACHIEVEMENT</p>
-    <hr class="divider"/>
-
-    <p class="presented-to">This certificate is proudly presented to</p>
-    <h2 class="student-name">${registration.studentName}</h2>
-
-    <div class="event-badge">${event.title}</div>
-
-    <div class="cert-body">${certificateBody}</div>
-
-    <p style="color:#555; font-size:14px;">
-      ${event.date} | ${event.location}
-    </p>
-
-    <div class="sign-line"></div>
-    <p class="sign-name">${ngoName}</p>
-    <p class="sign-role">Authorised Signatory</p>
-
-    <p class="footer">
-      Certificate ID: CERT-${Date.now()} ·
-      Issued on ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
-    </p>
-  </div>
-</body>
-</html>
-      `.trim();
-
-      await transporter.sendMail({
-        from: `"${ngoName}" <${process.env.EMAIL_USER}>`,
-        to: registration.studentEmail,
-        subject: `Your Certificate for "${event.title}" - ${ngoName}`,
-        html: certificateHtml,
+      await sendCertificateEmail({
+        email: recipientEmail,
+        name: student?.name || registration.studentName || 'Volunteer',
+        certificateText,
       });
 
       registration.certificateIssued = true;
@@ -429,19 +345,18 @@ Return ONLY the certificate body text (no subject line, no HTML, no JSON).
       await event.save();
 
       res.json({
-        message: `Certificate sent to ${registration.studentEmail}`,
+        message: `Certificate sent to ${recipientEmail}`,
         certificateIssuedAt: registration.certificateIssuedAt,
       });
     } catch (error) {
       console.error('Certificate generation error:', error);
       res.status(500).json({
-        message: 'Failed to generate certificate',
+        message: 'Failed to send certificate',
         error: error.message,
       });
     }
   }
 );
-
 router.get('/dashboard/stats', requireAuth, async (req, res) => {
   try {
     const events = await Event.find({ ngoId: req.user.id });
@@ -484,3 +399,5 @@ router.get('/dashboard/stats', requireAuth, async (req, res) => {
 });
 
 export default router;
+
+

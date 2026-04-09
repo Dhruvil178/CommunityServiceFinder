@@ -39,6 +39,7 @@ export default function ManageStudentsScreen({ route }) {
   const [stats, setStats] = useState(null);
   const [attendanceMap, setAttendanceMap] = useState({});
   const [markAttendanceLoading, setMarkAttendanceLoading] = useState(false);
+  const [bulkCertLoading, setBulkCertLoading] = useState(false);
   const [certLoading, setCertLoading] = useState(null);
 
   const getAttendanceStatus = registration => {
@@ -189,19 +190,58 @@ export default function ManageStudentsScreen({ route }) {
   };
 
   const handleIssueCertificate = async registrationId => {
+    const registration = registrations.find(item => item._id === registrationId);
+    const studentId = getStudentIdFromRegistration(registration);
+
+    if (!studentId) {
+      Alert.alert('Unavailable', 'This registration is not linked to a student account.');
+      return;
+    }
+
     setCertLoading(registrationId);
     try {
       const response = await api.post(
-        `/ngo/events/${eventId}/registrations/${registrationId}/certificate`,
-        {}
+        '/certificate/send',
+        { eventId, studentId }
       );
       Alert.alert('Success', response.data.message);
       fetchRegistrations();
     } catch (error) {
       console.error('Certificate error:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Failed to issue certificate.');
+      const message =
+        (typeof error === 'string' && error) ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to issue certificate.';
+      Alert.alert('Error', message);
     } finally {
       setCertLoading(null);
+    }
+  };
+
+  const handleSendCertificates = async () => {
+    setBulkCertLoading(true);
+    try {
+      const { data } = await api.post(`/certificate/send-all/${eventId}`, {});
+      await fetchRegistrations();
+
+      const sentCount = data?.sentCount ?? 0;
+      const failedCount = data?.failedCount ?? 0;
+      const skippedCount = data?.skippedCount ?? 0;
+
+      Alert.alert(
+        'Certificates sent successfully',
+        `Sent: ${sentCount}\nFailed: ${failedCount}\nSkipped: ${skippedCount}`
+      );
+    } catch (error) {
+      const message =
+        (typeof error === 'string' && error) ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to send certificates.';
+      Alert.alert('Error', message);
+    } finally {
+      setBulkCertLoading(false);
     }
   };
 
@@ -302,6 +342,23 @@ export default function ManageStudentsScreen({ route }) {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.sendCertificatesContainer}>
+        <TouchableOpacity
+          style={[
+            styles.sendCertificatesButton,
+            bulkCertLoading && styles.markAttendanceButtonDisabled,
+          ]}
+          onPress={handleSendCertificates}
+          disabled={bulkCertLoading}
+        >
+          {bulkCertLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.markAttendanceButtonText}>Send Certificates</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         data={registrations}
         keyExtractor={item => item._id}
@@ -357,6 +414,14 @@ const styles = StyleSheet.create({
   },
   markAttendanceButtonDisabled: { opacity: 0.7 },
   markAttendanceButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  sendCertificatesContainer: { paddingHorizontal: 16, paddingTop: 8 },
+  sendCertificatesButton: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   listContent: { padding: 16 },
   studentCard: {
     backgroundColor: '#1A1A1A',

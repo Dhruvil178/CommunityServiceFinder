@@ -48,6 +48,7 @@ const EventManagementScreen = ({ route, navigation }) => {
   const [attendanceMap, setAttendanceMap] = useState({});
   const [markAttendanceLoading, setMarkAttendanceLoading] = useState(false);
   const [certLoading, setCertLoading]     = useState({}); // { [regId]: bool }
+  const [bulkCertLoading, setBulkCertLoading] = useState(false);
 
   const authHeader = { headers: { Authorization: `Bearer ${token}` } };
   const getAttendanceStatus = registration => {
@@ -256,6 +257,12 @@ const EventManagementScreen = ({ route, navigation }) => {
       return;
     }
 
+    const studentId = getStudentIdFromRegistration(registration);
+    if (!studentId) {
+      Alert.alert('Unavailable', 'This registration is not linked to a student account.');
+      return;
+    }
+
     Alert.alert(
       '🎓 Send Certificate',
       `Generate an AI certificate and email it to ${registration.studentName} (${registration.studentEmail})?`,
@@ -268,8 +275,8 @@ const EventManagementScreen = ({ route, navigation }) => {
             setCertLoading(prev => ({ ...prev, [regId]: true }));
             try {
               await axios.post(
-                `${API_BASE_URL}/api/ngo/events/${eventId}/registrations/${regId}/certificate`,
-                {},
+                `${API_BASE_URL}/api/certificate/send`,
+                { eventId, studentId },
                 authHeader
               );
               Alert.alert(
@@ -278,7 +285,11 @@ const EventManagementScreen = ({ route, navigation }) => {
               );
               await loadData();
             } catch (err) {
-              const msg = err?.response?.data?.message || 'Failed to send certificate';
+              const msg =
+                (typeof err === 'string' && err) ||
+                err?.response?.data?.message ||
+                err?.message ||
+                'Failed to send certificate';
               Alert.alert('Error', msg);
             } finally {
               setCertLoading(prev => ({ ...prev, [regId]: false }));
@@ -298,31 +309,38 @@ const EventManagementScreen = ({ route, navigation }) => {
     }
     Alert.alert(
       `Send ${pending.length} Certificates?`,
-      `AI certificates will be generated and emailed to all ${pending.length} attended students.`,
+      'This will generate and email certificates to all present students.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Send All',
+          text: 'Send',
           onPress: async () => {
-            // Send one by one to avoid rate limiting
-            let successCount = 0;
-            for (const reg of pending) {
-              try {
-                await axios.post(
-                  `${API_BASE_URL}/api/ngo/events/${eventId}/registrations/${reg._id}/certificate`,
-                  {},
-                  authHeader
-                );
-                successCount++;
-              } catch {
-                // Continue with others even if one fails
-              }
+            setBulkCertLoading(true);
+            try {
+              const { data } = await axios.post(
+                `${API_BASE_URL}/api/certificate/send-all/${eventId}`,
+                {},
+                authHeader
+              );
+              await loadData();
+
+              const sentCount = data?.sentCount ?? 0;
+              const failedCount = data?.failedCount ?? 0;
+              const skippedCount = data?.skippedCount ?? 0;
+
+              Alert.alert(
+                'Certificates sent successfully',
+                `Sent: ${sentCount}\nFailed: ${failedCount}\nSkipped: ${skippedCount}`
+              );
+            } catch (err) {
+              const msg =
+                err?.response?.data?.message ||
+                err?.message ||
+                'Failed to send certificates';
+              Alert.alert('Error', msg);
+            } finally {
+              setBulkCertLoading(false);
             }
-            await loadData();
-            Alert.alert(
-              '✅ Done',
-              `${successCount}/${pending.length} certificates sent successfully.`
-            );
           },
         },
       ]
@@ -512,8 +530,10 @@ const EventManagementScreen = ({ route, navigation }) => {
             icon="send"
             style={[styles.actionBtn, styles.actionBtnPrimary]}
             labelStyle={styles.actionBtnLabel}
+            loading={bulkCertLoading}
+            disabled={bulkCertLoading}
           >
-            Send All Certs
+            Send Certificates
           </Button>
         </View>
 
@@ -664,3 +684,4 @@ const styles = StyleSheet.create({
 });
 
 export default EventManagementScreen;
+
