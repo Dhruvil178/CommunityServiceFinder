@@ -9,10 +9,29 @@ import {
   Surface, Divider, Avatar, Searchbar,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../constants';
+import api from '../../services/api';
+
+const getStudentIdFromRegistration = registration => {
+  const rawId = registration?.userId;
+  if (!rawId) return null;
+
+  if (typeof rawId === 'string') return rawId;
+  if (typeof rawId === 'object' && rawId._id) return rawId._id.toString();
+
+  const parsed = rawId.toString?.();
+  if (!parsed || parsed === '[object Object]') return null;
+  return parsed;
+};
+
+const getStudentIdFromAttendanceRecord = record => {
+  const rawId = record?.studentId?._id || record?.studentId;
+  if (!rawId) return null;
+  return rawId.toString?.() || null;
+};
 
 const EventManagementScreen = ({ route, navigation }) => {
   const { eventId } = route.params;
@@ -26,22 +45,49 @@ const EventManagementScreen = ({ route, navigation }) => {
   const [loading, setLoading]         = useState(true);
   const [selectedTab, setSelectedTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [tickerLoading, setTickerLoading] = useState({}); // { [regId]: bool }
+  const [attendanceMap, setAttendanceMap] = useState({});
+  const [markAttendanceLoading, setMarkAttendanceLoading] = useState(false);
   const [certLoading, setCertLoading]     = useState({}); // { [regId]: bool }
 
   const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+  const getAttendanceStatus = registration => {
+    const studentId = getStudentIdFromRegistration(registration);
+    if (studentId && attendanceMap[studentId]) {
+      return attendanceMap[studentId];
+    }
+
+    return registration.attended ? 'present' : 'absent';
+  };
 
   // ─── Load data ───────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/ngo/events/${eventId}/registrations`,
-        authHeader
-      );
+      const [{ data }, { data: attendanceData }] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/ngo/events/${eventId}/registrations`, authHeader),
+        api.get(`/attendance/${eventId}`, authHeader),
+      ]);
       setEvent(data.event);
       // 🔥 FIX: Add fallback empty objects/arrays to prevent frontend crashes
       setStats(data.stats || {});
-      setRegs(data.registrations ||[]); 
+      const registrationsData = data.registrations || [];
+      setRegs(registrationsData);
+
+      const nextAttendanceMap = {};
+      registrationsData.forEach(registration => {
+        const studentId = getStudentIdFromRegistration(registration);
+        if (studentId) {
+          nextAttendanceMap[studentId] = registration.attended ? 'present' : 'absent';
+        }
+      });
+
+      (attendanceData?.attendance || []).forEach(record => {
+        const studentId = getStudentIdFromAttendanceRecord(record);
+        if (studentId) {
+          nextAttendanceMap[studentId] = record.status;
+        }
+      });
+
+      setAttendanceMap(nextAttendanceMap);
     } catch (err) {
       console.error("Manage Students Fetch Error:", err);
       Alert.alert('Error', 'Failed to load event data');
@@ -80,40 +126,91 @@ const EventManagementScreen = ({ route, navigation }) => {
   };
 
   // ─── Mark attendance ticker ───────────────────────────────────────────────
-  const handleToggleAttendance = async (registration) => {
-    const regId = registration._id;
-    const newValue = !registration.attended;
+  const handleToggleAttendance = (registration) => {
+    const studentId = getStudentIdFromRegistration(registration);
+    if (!studentId) {
+      Alert.alert('Unavailable', 'This registration is not linked to a student account.');
+      return;
+    }
 
-    // Optimistic update
-    setRegs(prev =>
-      prev.map(r =>
-        r._id === regId ? { ...r, attended: newValue, status: newValue ? 'completed' : 'registered' } : r
-      )
-    );
-    setTickerLoading(prev => ({ ...prev, [regId]: true }));
+    setAttendanceMap(prev => {
+      const currentStatus =
+        prev[studentId] || (registration.attended ? 'present' : 'absent');
+
+      return {
+        ...prev,
+        [studentId]: currentStatus === 'present' ? 'absent' : 'present',
+      };
+    });
+  };
+
+  const handleMarkAttendance = async () => {
+    const payloads = registrations
+      .map(registration => {
+        const studentId = getStudentIdFromRegistration(registration);
+        if (!studentId) return null;
+
+        return {
+          registrationId: registration._id,
+          studentId,
+          status: getAttendanceStatus(registration),
+        };
+      })
+      .filter(Boolean);
+
+    if (payloads.length === 0) {
+      Alert.alert('No linked students', 'No registrations are linked to student accounts.');
+      return;
+    }
+
+    setMarkAttendanceLoading(true);
 
     try {
-      await axios.post(
-        `${API_BASE_URL}/api/ngo/events/${eventId}/registrations/${regId}/attendance`,
-        { attended: newValue },
-        authHeader
-      );
-      // Refresh stats
-      const { data } = await axios.get(
-        `${API_BASE_URL}/api/ngo/events/${eventId}/registrations`,
-        authHeader
-      );
-      setStats(data.stats);
-    } catch (err) {
-      // Revert optimistic update on failure
-      setRegs(prev =>
-        prev.map(r =>
-          r._id === regId ? { ...r, attended: !newValue } : r
+      await Promise.all(
+        payloads.map(payload =>
+          api.post(
+            '/attendance/mark',
+            {
+              eventId,
+              studentId: payload.studentId,
+              status: payload.status,
+            },
+            authHeader
+          )
         )
       );
-      Alert.alert('Error', 'Failed to update attendance');
+
+      const statusByRegistrationId = payloads.reduce((acc, item) => {
+        acc[item.registrationId] = item.status;
+        return acc;
+      }, {});
+
+      setRegs(prev =>
+        prev.map(registration => {
+          const status = statusByRegistrationId[registration._id];
+          if (!status) return registration;
+
+          const isPresent = status === 'present';
+          return {
+            ...registration,
+            attended: isPresent,
+            attendedAt: isPresent ? new Date().toISOString() : null,
+            status: isPresent ? 'completed' : 'registered',
+          };
+        })
+      );
+
+      Alert.alert('Success', 'Attendance marked successfully.');
+      await loadData();
+    } catch (error) {
+      const message =
+        (typeof error === 'string' && error) ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to mark attendance.';
+      Alert.alert('Error', message);
     } finally {
-      setTickerLoading(prev => ({ ...prev, [regId]: false }));
+      setMarkAttendanceLoading(false);
     }
   };
 
@@ -258,8 +355,10 @@ const EventManagementScreen = ({ route, navigation }) => {
   // ─── Registration card ────────────────────────────────────────────────────
   const RegistrationCard = ({ registration }) => {
     const regId = registration._id;
-    const isTickerLoading = tickerLoading[regId];
     const isCertLoading   = certLoading[regId];
+    const selectedStatus = getAttendanceStatus(registration);
+    const isPresent = selectedStatus === 'present';
+    const hasLinkedStudent = Boolean(getStudentIdFromRegistration(registration));
 
     return (
       <Card style={styles.regCard}>
@@ -290,18 +389,15 @@ const EventManagementScreen = ({ route, navigation }) => {
             {/* Attendance ticker */}
             <View style={styles.tickerContainer}>
               <Paragraph style={styles.tickerLabel}>
-                {registration.attended ? 'Present' : 'Absent'}
+                {isPresent ? 'Present' : 'Absent'}
               </Paragraph>
-              {isTickerLoading ? (
-                <ActivityIndicator size="small" color="#10b981" />
-              ) : (
-                <Switch
-                  value={registration.attended || false}
-                  onValueChange={() => handleToggleAttendance(registration)}
-                  trackColor={{ false: '#374151', true: '#059669' }}
-                  thumbColor={registration.attended ? '#10b981' : '#9ca3af'}
-                />
-              )}
+              <Switch
+                value={isPresent}
+                onValueChange={() => handleToggleAttendance(registration)}
+                trackColor={{ false: '#374151', true: '#059669' }}
+                thumbColor={isPresent ? '#10b981' : '#9ca3af'}
+                disabled={!hasLinkedStudent}
+              />
             </View>
           </View>
 
@@ -421,6 +517,20 @@ const EventManagementScreen = ({ route, navigation }) => {
           </Button>
         </View>
 
+        <View style={styles.markAttendanceRow}>
+          <Button
+            mode="contained"
+            onPress={handleMarkAttendance}
+            icon="how-to-reg"
+            style={styles.markAttendanceBtn}
+            labelStyle={styles.actionBtnLabel}
+            loading={markAttendanceLoading}
+            disabled={markAttendanceLoading}
+          >
+            Mark Attendance
+          </Button>
+        </View>
+
         {/* ── Search ───────────────────────────────────────── */}
         <Searchbar
           placeholder="Search students..."
@@ -499,6 +609,8 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 12 },
   actionBtn: { flex: 1, borderColor: '#8b5cf6' },
   actionBtnPrimary: { backgroundColor: '#8b5cf6' },
+  markAttendanceRow: { marginHorizontal: 16, marginBottom: 12 },
+  markAttendanceBtn: { backgroundColor: '#10b981' },
   actionBtnLabel: { fontSize: 13 },
 
   // Search

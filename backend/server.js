@@ -12,6 +12,7 @@ import profileRoutes from './routes/profileRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
 import chatbotRoutes from './routes/chatbot.js';
 import recommendationRoutes from './routes/recommendation.js';
+import attendanceRoutes from './routes/attendanceRoutes.js';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api', profileRoutes);         // /api/profile
 app.use('/api', securityRoutes);        // /api/security/*
 app.use('/api/chatbot', chatbotRoutes); // /api/chatbot/chat
 app.use('/api', recommendationRoutes);  // /api/recommend
+app.use('/api', attendanceRoutes);      // /api/attendance/*
 
 // Error handling
 app.use((err, req, res, next) => {

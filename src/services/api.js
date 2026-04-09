@@ -69,12 +69,6 @@ if (error?.response?.data) {
   message = error.message;
 }
 
-if (__DEV__) {
-  console.error("❌ API Error:", message);
-}
-
-return Promise.reject(message);
-
     if (__DEV__) {
       console.error("❌ API Error:", message);
     }
