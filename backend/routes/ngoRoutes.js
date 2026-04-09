@@ -186,6 +186,9 @@ router.get('/events/:eventId/registrations', requireAuth, async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
+    // 🔥 FIX: Safely fallback to an empty array if no one has registered yet
+    const regs = event.registrations ||[];
+
     res.json({
       event: {
         _id: event._id,
@@ -196,13 +199,13 @@ router.get('/events/:eventId/registrations', requireAuth, async (req, res) => {
         status: event.status,
         spotsAvailable: event.spotsAvailable,
       },
-      registrations: event.registrations,
+      registrations: regs,
       stats: {
-        total: event.registrations.length,
-        registered: event.registrations.filter(r => r.status === 'registered').length,
-        attended: event.registrations.filter(r => r.attended === true).length,
-        completed: event.registrations.filter(r => r.status === 'completed').length,
-        certificatesIssued: event.registrations.filter(r => r.certificateIssued).length,
+        total: regs.length,
+        registered: regs.filter(r => r.status === 'registered').length,
+        attended: regs.filter(r => r.attended === true).length,
+        completed: regs.filter(r => r.status === 'completed').length,
+        certificatesIssued: regs.filter(r => r.certificateIssued).length,
       },
     });
   } catch (error) {

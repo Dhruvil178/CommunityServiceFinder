@@ -12,6 +12,7 @@ import NGOProfileScreen from '../screens/ngo/NGOProfileScreen';
 import CreateEventScreen from '../screens/ngo/CreateEventScreen';
 import EventManagementScreen from '../screens/ngo/EventManagementScreen';
 import SecurityScreen from '../screens/main/SecurityScreen';
+import ManageStudentsScreen from '../screens/ngo/ManageStudentsScreen'; // Adjust path as needed
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();

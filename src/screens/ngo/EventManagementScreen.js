@@ -39,9 +39,11 @@ const EventManagementScreen = ({ route, navigation }) => {
         authHeader
       );
       setEvent(data.event);
-      setStats(data.stats);
-      setRegs(data.registrations);
+      // 🔥 FIX: Add fallback empty objects/arrays to prevent frontend crashes
+      setStats(data.stats || {});
+      setRegs(data.registrations ||[]); 
     } catch (err) {
+      console.error("Manage Students Fetch Error:", err);
       Alert.alert('Error', 'Failed to load event data');
     } finally {
       setLoading(false);

@@ -6,12 +6,13 @@ export default function EventDetailsScreen({ route, navigation }) {
 
   return (
     <ScrollView style={styles.container}>
-      {event.image && (
-        <Image source={{ uri: event.image }} style={styles.image} />
-      )}
+      <Image 
+        source={{ uri: event.image || 'https://via.placeholder.com/400x200.png?text=Event+Image' }} 
+        style={styles.image} 
+      />
 
       <Text style={styles.title}>{event.title}</Text>
-      <Text style={styles.date}>{event.date}</Text>
+      <Text style={styles.date}>{event.date} at {event.time}</Text>
       <Text style={styles.location}>{event.location}</Text>
 
       <Text style={styles.description}>{event.description}</Text>
@@ -29,7 +30,7 @@ export default function EventDetailsScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: "#0D0D0D", // Dark background
+    backgroundColor: "#0D0D0D",
     flex: 1,
   },
   image: {
@@ -41,12 +42,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: "bold",
-    color: "#FFFFFF",   // White text
+    color: "#FFFFFF",
     marginBottom: 8
   },
   date: {
     fontSize: 16,
-    color: "#BBBBBB",   // Light grey text
+    color: "#BBBBBB",
     marginBottom: 4
   },
   location: {
@@ -56,12 +57,12 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: "#DDDDDD",   // Softer white
+    color: "#DDDDDD",
     marginBottom: 24,
     lineHeight: 22
   },
   button: {
-    backgroundColor: "#1E90FF", // Dark-friendly blue
+    backgroundColor: "#1E90FF",
     padding: 14,
     borderRadius: 10,
     alignItems: "center",
