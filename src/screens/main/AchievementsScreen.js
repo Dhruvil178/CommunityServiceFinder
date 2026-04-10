@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, StyleSheet, ScrollView, FlatList, TouchableOpacity,
-  Animated, Dimensions,
+  Animated, Dimensions, ActivityIndicator,
 } from 'react-native';
 import { Surface, Title, Paragraph } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { useSelector } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { achievements as allAchievements } from '../../store/achievementSlice';
+import { fetchLeaderboard } from '../../services/LeaderboardService';
+import { syncAchievements, syncGameState } from '../../services/SyncService';
 
 const { width } = Dimensions.get('window');
 const CARD_W = (width - 48) / 2;
@@ -69,7 +71,7 @@ const XPBar = ({ xp, level }) => {
 };
 
 // ─── Player card ─────────────────────────────────────────────────────────────
-const PlayerCard = ({ user, xp, level, coins, streak, totalUnlocked }) => {
+const PlayerCard = ({ user, xp, level, coins, streak, totalUnlocked, userRank }) => {
   const rank = getRank(level);
   return (
     <LinearGradient
@@ -122,7 +124,7 @@ const PlayerCard = ({ user, xp, level, coins, streak, totalUnlocked }) => {
         {[
           { emoji: '🎯', value: totalUnlocked,  label: 'Achieved' },
           { emoji: '🏆', value: totalUnlocked,  label: 'Badges' },
-          { emoji: '📍', value: '#3',           label: 'Rank' },
+          { emoji: '📍', value: userRank === 'N/A' ? '-' : `#${userRank}`,           label: 'Rank' },
         ].map(s => (
           <View key={s.label} style={styles.quickStat}>
             <Paragraph style={styles.qsEmoji}>{s.emoji}</Paragraph>
@@ -170,21 +172,13 @@ const AchievementTile = ({ achievement, isUnlocked, unlockedAt }) => {
 };
 
 // ─── Leaderboard row ─────────────────────────────────────────────────────────
-const MOCK_BOARD = [
-  { rank: 1, name: 'Arjun Mehta',  level: 15, xp: 8450, isMe: false },
-  { rank: 2, name: 'Priya Nair',   level: 14, xp: 7890, isMe: false },
-  { rank: 3, name: 'You',          level: 7,  xp: 2450, isMe: true  },
-  { rank: 4, name: 'Rahul Singh',  level: 6,  xp: 2100, isMe: false },
-  { rank: 5, name: 'Sneha Patil',  level: 5,  xp: 1850, isMe: false },
-];
-
 const rankColors = ['#f59e0b', '#94a3b8', '#d97706'];
 
-const LeaderboardRow = ({ player }) => (
+const LeaderboardRow = ({ player, isUser, userLevel }) => (
   <LinearGradient
-    colors={player.isMe ? ['#4f1d96', '#831843'] : ['#1a1d2e', '#1a1d2e']}
+    colors={isUser ? ['#4f1d96', '#831843'] : ['#1a1d2e', '#1a1d2e']}
     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-    style={[styles.boardRow, player.isMe && styles.boardRowMe]}
+    style={[styles.boardRow, isUser && styles.boardRowMe]}
   >
     <View style={[
       styles.rankBubble,
@@ -198,16 +192,18 @@ const LeaderboardRow = ({ player }) => (
       {player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : '🎖️'}
     </Paragraph>
     <View style={styles.boardInfo}>
-      <Paragraph style={styles.boardName}>{player.name}</Paragraph>
+      <Paragraph style={styles.boardName}>{player.name || 'Anonymous'}</Paragraph>
       <View style={styles.boardMeta}>
         <View style={styles.boardLvl}>
-          <Paragraph style={styles.boardLvlText}>Lvl {player.level}</Paragraph>
+          <Paragraph style={styles.boardLvlText}>
+            Lvl {isUser ? userLevel : (player.level || userLevel)}
+          </Paragraph>
         </View>
         <Icon name="bolt" size={13} color="#38bdf8" />
-        <Paragraph style={styles.boardXP}>{player.xp.toLocaleString()} XP</Paragraph>
+        <Paragraph style={styles.boardXP}>{(player.xp || 0).toLocaleString()} XP</Paragraph>
       </View>
     </View>
-    {player.isMe && (
+    {isUser && (
       <View style={styles.youBadge}>
         <Paragraph style={styles.youText}>YOU</Paragraph>
       </View>
@@ -218,16 +214,89 @@ const LeaderboardRow = ({ player }) => (
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function AchievementsScreen() {
   const [tab, setTab] = useState('overview');
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   const { user }     = useSelector(state => state.auth);
   const { xp, level, coins } = useSelector(state => state.game);
   const unlocked     = useSelector(state => state.achievements.unlocked);
 
-  // Streak: count from local state (replace with real backend value when available)
   const streak = useSelector(state => state.game?.streak || 0);
 
   const achieveList  = Object.values(allAchievements);
   const totalUnlocked = Object.keys(unlocked).length;
+
+  // Fetch leaderboard data (called when leaderboard tab is active)
+  const fetchLeaderboardData = async () => {
+    setLoadingLeaderboard(true);
+    try {
+      const data = await fetchLeaderboard(50);
+      setLeaderboard(data || []);
+    } catch (err) {
+      console.error('Error fetching leaderboard:', err);
+      setLeaderboard([]);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  };
+
+  // Fetch leaderboard on mount
+  useEffect(() => {
+    fetchLeaderboardData();
+  }, []);
+
+  // Refetch leaderboard when tab changes to leaderboard
+  useEffect(() => {
+    if (tab === 'leaderboard') {
+      fetchLeaderboardData();
+    }
+  }, [tab]);
+
+  // Refetch leaderboard whenever user's XP or level changes (to show real-time updates)
+  useEffect(() => {
+    fetchLeaderboardData();
+  }, [xp, level]);
+
+  // Periodic refetch of leaderboard when viewing it (every 10 seconds)
+  useEffect(() => {
+    if (tab === 'leaderboard') {
+      const interval = setInterval(() => {
+        fetchLeaderboardData();
+      }, 10000); // Refetch every 10 seconds
+      return () => clearInterval(interval);
+    }
+  }, [tab]);
+
+  // Sync game state and achievements to backend periodically
+  useEffect(() => {
+    const syncToBackend = async () => {
+      try {
+        // Sync achievements
+        await syncAchievements(unlocked);
+        // Sync game state (xp, coins)
+        await syncGameState(xp, coins);
+      } catch (err) {
+        console.error('Error syncing to backend:', err);
+      }
+    };
+
+    // Sync immediately on mount
+    syncToBackend();
+
+    // Setup interval to sync every 30 seconds
+    const syncInterval = setInterval(syncToBackend, 30000);
+
+    return () => clearInterval(syncInterval);
+  }, [xp, coins, unlocked]);
+
+  // Calculate current user's rank from leaderboard
+  const userRank = leaderboard.length > 0
+    ? leaderboard.find(p => {
+        const pUserId = typeof p.userId === 'string' ? p.userId : p.userId?.toString();
+        const uId = user?._id?.toString() || user?.id?.toString();
+        return pUserId === uId;
+      })?.rank || 'N/A'
+    : 'N/A';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -258,6 +327,7 @@ export default function AchievementsScreen() {
             coins={coins}
             streak={streak}
             totalUnlocked={totalUnlocked}
+            userRank={userRank}
           />
 
           {/* Progress to next unlock */}
@@ -328,47 +398,81 @@ export default function AchievementsScreen() {
       {/* ── Leaderboard tab ───────────────────────────────── */}
       {tab === 'leaderboard' && (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* Podium */}
-          <LinearGradient
-            colors={['#1e1b4b', '#1a1d2e']}
-            style={styles.podiumCard}
-          >
-            <View style={styles.podium}>
-              {/* 2nd */}
-              <View style={[styles.podiumCol, { marginBottom: 0 }]}>
-                <Paragraph style={styles.podiumEmoji}>🥈</Paragraph>
-                <Paragraph style={styles.podiumName}>
-                  {MOCK_BOARD[1].name.split(' ')[0]}
-                </Paragraph>
-                <Paragraph style={styles.podiumLvl}>Lvl {MOCK_BOARD[1].level}</Paragraph>
-                <View style={[styles.podiumBase, { height: 60, backgroundColor: '#475569' }]} />
-              </View>
-              {/* 1st */}
-              <View style={[styles.podiumCol, { marginBottom: 0 }]}>
-                <Icon name="workspace-premium" size={28} color="#f59e0b" style={{ marginBottom: 4 }} />
-                <Paragraph style={[styles.podiumEmoji, { fontSize: 34 }]}>🥇</Paragraph>
-                <Paragraph style={[styles.podiumName, { color: '#fbbf24' }]}>
-                  {MOCK_BOARD[0].name.split(' ')[0]}
-                </Paragraph>
-                <Paragraph style={styles.podiumLvl}>Lvl {MOCK_BOARD[0].level}</Paragraph>
-                <View style={[styles.podiumBase, { height: 80, backgroundColor: '#92400e' }]} />
-              </View>
-              {/* 3rd */}
-              <View style={[styles.podiumCol, { marginBottom: 0 }]}>
-                <Paragraph style={styles.podiumEmoji}>🥉</Paragraph>
-                <Paragraph style={styles.podiumName}>
-                  {MOCK_BOARD[2].name.split(' ')[0]}
-                </Paragraph>
-                <Paragraph style={styles.podiumLvl}>Lvl {MOCK_BOARD[2].level}</Paragraph>
-                <View style={[styles.podiumBase, { height: 44, backgroundColor: '#7c2d12' }]} />
-              </View>
+          {loadingLeaderboard && (
+            <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+              <ActivityIndicator size="large" color="#a78bfa" />
             </View>
-          </LinearGradient>
+          )}
 
-          {/* Full list */}
-          <View style={styles.boardList}>
-            {MOCK_BOARD.map(p => <LeaderboardRow key={p.rank} player={p} />)}
-          </View>
+          {!loadingLeaderboard && leaderboard.length > 0 && (
+            <>
+              {/* Podium */}
+              <LinearGradient
+                colors={['#1e1b4b', '#1a1d2e']}
+                style={styles.podiumCard}
+              >
+                <View style={styles.podium}>
+                  {/* 2nd */}
+                  {leaderboard[1] && (
+                    <View style={[styles.podiumCol, { marginBottom: 0 }]}>
+                      <Paragraph style={styles.podiumEmoji}>🥈</Paragraph>
+                      <Paragraph style={styles.podiumName}>
+                        {leaderboard[1].name.split(' ')[0]}
+                      </Paragraph>
+                      <Paragraph style={styles.podiumLvl}>Lvl {leaderboard[1].level}</Paragraph>
+                      <View style={[styles.podiumBase, { height: 60, backgroundColor: '#475569' }]} />
+                    </View>
+                  )}
+                  {/* 1st */}
+                  {leaderboard[0] && (
+                    <View style={[styles.podiumCol, { marginBottom: 0 }]}>
+                      <Icon name="workspace-premium" size={28} color="#f59e0b" style={{ marginBottom: 4 }} />
+                      <Paragraph style={[styles.podiumEmoji, { fontSize: 34 }]}>🥇</Paragraph>
+                      <Paragraph style={[styles.podiumName, { color: '#fbbf24' }]}>
+                        {leaderboard[0].name.split(' ')[0]}
+                      </Paragraph>
+                      <Paragraph style={styles.podiumLvl}>Lvl {leaderboard[0].level}</Paragraph>
+                      <View style={[styles.podiumBase, { height: 80, backgroundColor: '#92400e' }]} />
+                    </View>
+                  )}
+                  {/* 3rd */}
+                  {leaderboard[2] && (
+                    <View style={[styles.podiumCol, { marginBottom: 0 }]}>
+                      <Paragraph style={styles.podiumEmoji}>🥉</Paragraph>
+                      <Paragraph style={styles.podiumName}>
+                        {leaderboard[2].name.split(' ')[0]}
+                      </Paragraph>
+                      <Paragraph style={styles.podiumLvl}>Lvl {leaderboard[2].level}</Paragraph>
+                      <View style={[styles.podiumBase, { height: 44, backgroundColor: '#7c2d12' }]} />
+                    </View>
+                  )}
+                </View>
+              </LinearGradient>
+
+              {/* Full list */}
+              <View style={styles.boardList}>
+                {leaderboard.map((p) => {
+                  const pUserId = typeof p.userId === 'string' ? p.userId : p.userId?.toString();
+                  const uId = user?._id?.toString() || user?.id?.toString();
+                  const isUser = pUserId === uId;
+                  return (
+                    <LeaderboardRow
+                      key={p.rank}
+                      player={p}
+                      isUser={isUser}
+                      userLevel={level}
+                    />
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {!loadingLeaderboard && leaderboard.length === 0 && (
+            <View style={{ justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
+              <Paragraph style={{ color: '#9ca3af' }}>No leaderboard data available</Paragraph>
+            </View>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>

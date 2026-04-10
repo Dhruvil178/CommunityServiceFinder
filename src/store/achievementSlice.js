@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import store from './store';
 
 const initialState = {
   unlocked: {},
@@ -7,6 +8,17 @@ const initialState = {
 
 // ✅ CLEAN + FULL ACHIEVEMENTS OBJECT
 export const achievements = {
+  // Login
+  FIRST_LOGIN: {
+    id: 'FIRST_LOGIN',
+    title: 'Welcome to Service!',
+    description: 'Welcome to Community Service Finder! Start your journey to become a hero.',
+    icon: '🎉',
+    rarity: 'rare',
+    rewardXP: 50,
+    rewardCoins: 100,
+  },
+
   // XP & Level
   FIRST_XP: {
     id: 'FIRST_XP',
@@ -95,12 +107,18 @@ const achievementSlice = createSlice({
     clearRecentAchievement(state) {
       state.recentlyUnlocked = null;
     },
+
+    loadAchievements(state, action) {
+      const achievements = action.payload || {};
+      state.unlocked = achievements;
+    },
   },
 });
 
 export const {
   unlockAchievement,
   clearRecentAchievement,
+  loadAchievements,
 } = achievementSlice.actions;
 
 export default achievementSlice.reducer;

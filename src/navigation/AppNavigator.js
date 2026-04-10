@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { checkAuthState } from '../store/authSlice';
 import { setGameState } from '../store/gameSlice';
+import { loadAchievements } from '../store/achievementSlice';
 
 // Navigators
 import AuthNavigator from './AuthNavigator';
@@ -39,11 +40,17 @@ export default function AppNavigator() {
 
   useEffect(() => {
     if (user) {
+      // Load persisted game state
       dispatch(setGameState({
         xp: user.xp ?? 0,
         coins: user.coins ?? 0,
         level: user.level ?? 1,
       }));
+
+      // Load persisted achievements
+      if (user.achievements) {
+        dispatch(loadAchievements(user.achievements));
+      }
     }
   }, [dispatch, user]);
 

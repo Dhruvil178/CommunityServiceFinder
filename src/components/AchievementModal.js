@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Portal, Modal, Text, Button } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearRecentAchievement } from '../store/achievementSlice';
+import { gainCoins, gainXP } from '../store/gameSlice';
 
 export default function AchievementModal() {
   const dispatch = useDispatch();
@@ -9,13 +10,29 @@ export default function AchievementModal() {
     state => state.achievements.recentlyUnlocked
   );
 
+  // Award coins/XP when achievement is unlocked
+  useEffect(() => {
+    if (achievement) {
+      if (achievement.rewardCoins) {
+        dispatch(gainCoins(achievement.rewardCoins));
+      }
+      if (achievement.rewardXP) {
+        dispatch(gainXP(achievement.rewardXP));
+      }
+    }
+  }, [achievement, dispatch]);
+
   if (!achievement) return null;
+
+  const handleDismiss = () => {
+    dispatch(clearRecentAchievement());
+  };
 
   return (
     <Portal>
       <Modal
         visible
-        onDismiss={() => dispatch(clearRecentAchievement())}
+        onDismiss={handleDismiss}
         contentContainerStyle={{
           backgroundColor: '#1a1d2e',
           margin: 24,
@@ -25,27 +42,28 @@ export default function AchievementModal() {
         }}
       >
         <Text style={{ fontSize: 24, color: '#fbbf24' }}>
-          Achievement Unlocked!
+          Achievement Unlocked! {achievement.icon}
         </Text>
 
-        <Text style={{ fontSize: 18, color: '#fff', marginTop: 12 }}>
+        <Text style={{ fontSize: 18, color: '#fff', marginTop: 12, fontWeight: '600' }}>
           {achievement.title}
         </Text>
 
-        <Text style={{ color: '#9ca3af', marginVertical: 8 }}>
+        <Text style={{ color: '#9ca3af', marginVertical: 8, textAlign: 'center' }}>
           {achievement.description}
         </Text>
 
-        <Text style={{ color: '#4ade80' }}>
-          🪙 +{achievement.rewardCoins} Coins
+        <Text style={{ color: '#4ade80', marginTop: 12, fontWeight: '600' }}>
+          {achievement.rewardXP && `⚡ +${achievement.rewardXP} XP  `}
+          {achievement.rewardCoins && `🪙 +${achievement.rewardCoins} Coins`}
         </Text>
 
         <Button
           mode="contained"
-          style={{ marginTop: 16 }}
-          onPress={() => dispatch(clearRecentAchievement())}
+          style={{ marginTop: 20 }}
+          onPress={handleDismiss}
         >
-          Nice!
+          Awesome!
         </Button>
       </Modal>
     </Portal>

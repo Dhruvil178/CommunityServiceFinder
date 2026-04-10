@@ -7,12 +7,15 @@ import CalendarScreen from '../screens/main/CalendarScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import CertificatesScreen from '../screens/main/CertificatesScreen';
 import AchievementsScreen from '../screens/main/AchievementsScreen';
+import AchievementEngineBridge from '../components/AchievementEngineBridge';
 import { theme } from '../utils/theme';
 
 const Tab = createBottomTabNavigator();
 
 const TabNavigator = () => (
-  <Tab.Navigator screenOptions={({ route }) => ({
+  <>
+    <AchievementEngineBridge />
+    <Tab.Navigator screenOptions={({ route }) => ({
     tabBarIcon: ({ color, size }) => {
       const icons = {
         Home: 'home',
@@ -45,6 +48,7 @@ const TabNavigator = () => (
     <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
     <Tab.Screen name="Certificates" component={CertificatesScreen} options={{ title: 'Certificates' }} />
   </Tab.Navigator>
+  </>
 );
 
 export default TabNavigator;

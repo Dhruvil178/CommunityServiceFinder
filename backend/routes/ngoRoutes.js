@@ -132,35 +132,62 @@ router.get('/events', requireAuth, async (req, res) => {
 router.get('/events/:eventId/registrations', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-
-    const event = await Event.findById(eventId);
+    const event = await Event.findById(eventId).populate('registrations');
 
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    // ensure NGO owns this event
-    if (event.ngoId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Unauthorized access' });
-    }
-
-    const registrations = event.registrations || [];
-
-    const stats = {
-      total: registrations.length,
-      attended: registrations.filter(r => r.attended).length,
-      certificatesIssued: registrations.filter(r => r.certificateIssued).length,
-    };
-
-    res.json({
-      event,
-      registrations,
-      stats,
-    });
+    res.json({ registrations: event.registrations || [] });
 
   } catch (error) {
     console.error('Fetch registrations error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Failed to fetch registrations' });
+  }
+});
+
+/* =========================================================
+   DELETE EVENT - NEW ROUTE
+========================================================= */
+router.delete('/events/:eventId', requireAuth, async (req, res) => {
+  console.log('[NGO ROUTES] DELETE /events/', req.params.eventId, 'by user', req.user.id);
+  try {
+    const { eventId } = req.params;
+    const ngo = await NGO.findById(req.user.id);
+
+    if (!ngo) {
+      console.log('[NGO ROUTES] NGO not found:', req.user.id);
+      return res.status(404).json({ message: 'NGO not found' });
+    }
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      console.log('[NGO ROUTES] Event not found:', eventId);
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (event.ngoId.toString() !== req.user.id) {
+      console.log('[NGO ROUTES] Unauthorized:', event.ngoId, '!=', req.user.id);
+      return res.status(403).json({ message: 'Unauthorized - you do not own this event' });
+    }
+
+    // Remove from NGO's eventsCreated array
+    await NGO.findByIdAndUpdate(req.user.id, {
+      $pull: { eventsCreated: eventId }
+    });
+
+    await Event.findByIdAndDelete(eventId);
+
+    console.log('[NGO ROUTES] Event deleted:', eventId);
+    res.json({ 
+      message: 'Event deleted successfully',
+      deletedEventId: eventId 
+    });
+
+  } catch (error) {
+    console.error('[NGO ROUTES] Delete error:', error);
+    res.status(500).json({ message: 'Failed to delete event' });
   }
 });
 

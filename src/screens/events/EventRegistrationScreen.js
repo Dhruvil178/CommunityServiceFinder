@@ -57,7 +57,15 @@ export default function EventRegistrationScreen({ route, navigation }) {
     } catch (error) {
       const msg =
         error?.response?.data?.message || 'Registration failed. Please try again.';
-      Alert.alert('Error', msg);
+
+      if (msg.includes('Monthly limit reached')) {
+        Alert.alert(
+          'Monthly limit reached',
+          'You can only register for 2 events per month.'
+        );
+      } else {
+        Alert.alert('Error', msg);
+      }
     } finally {
       setLoading(false);
     }

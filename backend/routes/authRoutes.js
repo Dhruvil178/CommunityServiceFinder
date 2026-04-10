@@ -16,6 +16,17 @@ const generateToken = (id, userType) => {
   );
 };
 
+// Helper function to calculate level from XP
+const calculateLevelFromXP = (totalXp) => {
+  let level = 1;
+  let remainingXp = totalXp || 0;
+  while (remainingXp >= level * 100) {
+    remainingXp -= level * 100;
+    level++;
+  }
+  return level;
+};
+
 /* =========================
    STUDENT REGISTER
 ========================= */
@@ -38,6 +49,19 @@ router.post("/auth/register", async (req, res) => {
 
     const token = generateToken(user._id, "student");
 
+    // Convert achievements Map to object
+    const achievementsObj = {};
+    if (user.achievements && typeof user.achievements.entries === 'function') {
+      for (const [key, value] of user.achievements.entries()) {
+        achievementsObj[key] = value;
+      }
+    } else if (user.achievements) {
+      Object.assign(achievementsObj, user.achievements);
+    }
+
+    // Calculate level from stored XP
+    const level = calculateLevelFromXP(user.xp || 0);
+
     res.status(201).json({
       token,
       user: {
@@ -46,6 +70,9 @@ router.post("/auth/register", async (req, res) => {
         email: user.email,
         xp: user.xp || 0,
         coins: user.coins || 0,
+        level,
+        achievements: achievementsObj,
+        hasReceivedFirstLoginAchievement: user.hasReceivedFirstLoginAchievement || false,
         userType: "student",
       },
     });
@@ -69,6 +96,19 @@ router.post("/auth/login", async (req, res) => {
 
     const token = generateToken(user._id, "student");
 
+    // Convert achievements Map to object
+    const achievementsObj = {};
+    if (user.achievements && typeof user.achievements.entries === 'function') {
+      for (const [key, value] of user.achievements.entries()) {
+        achievementsObj[key] = value;
+      }
+    } else if (user.achievements) {
+      Object.assign(achievementsObj, user.achievements);
+    }
+
+    // Calculate level from stored XP
+    const level = calculateLevelFromXP(user.xp || 0);
+
     res.json({
       token,
       user: {
@@ -77,6 +117,9 @@ router.post("/auth/login", async (req, res) => {
         email: user.email,
         xp: user.xp || 0,
         coins: user.coins || 0,
+        level,
+        achievements: achievementsObj,
+        hasReceivedFirstLoginAchievement: user.hasReceivedFirstLoginAchievement || false,
         userType: "student",
       },
     });

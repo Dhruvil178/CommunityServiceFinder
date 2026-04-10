@@ -6,7 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import axios from 'axios';
 
 // IMPORTANT: Use your local IP if testing on a real device 
-const BASE_URL = 'http://10.120.113.101:5000'; 
+const BASE_URL = 'http://192.168.0.106:5000'; 
 
 const EventsScreen = ({ navigation }) => {
   const theme = useTheme();

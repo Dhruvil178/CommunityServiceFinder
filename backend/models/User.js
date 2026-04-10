@@ -25,6 +25,20 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true }, // hashed
   xp: { type: Number, default: 0 },
   coins: { type: Number, default: 0 },
+  
+  // Achievements tracking
+  achievements: {
+    type: Map,
+    of: {
+      id: String,
+      unlockedAt: Date,
+    },
+    default: new Map(),
+  },
+
+  // Track if user has received the first login welcome achievement
+  hasReceivedFirstLoginAchievement: { type: Boolean, default: false },
+
   createdAt: { type: Date, default: Date.now },
   emailVerified: { type: Boolean, default: false },
 phoneVerified: { type: Boolean, default: false },

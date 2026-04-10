@@ -1,13 +1,14 @@
 // src/screens/ngo/NGOEventsListScreen.js
 
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import { Card, Title, Paragraph, Chip, FAB, Searchbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { fetchNGOEvents } from '../../store/ngoSlice';
 import { useNavigation } from '@react-navigation/native';
+import { deleteNGOEvent } from '../../services/ngoService';
 
 const NGOEventsListScreen = () => {
   const navigation = useNavigation(); // ✅ FIX: always correct navigator
@@ -137,6 +138,38 @@ const NGOEventsListScreen = () => {
                 <Icon name="group" size={18} color="#10b981" />
                 <Paragraph style={styles.actionText}>Manage</Paragraph>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={async () => {
+                  console.log('[EVENT LIST] Delete pressed for event:', event._id);
+                  Alert.alert(
+                    'Delete Event',
+                    `Are you sure you want to delete "${event.title}"? This action cannot be undone and will remove all registrations.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await deleteNGOEvent(event._id);
+                            Alert.alert('Success', 'Event deleted successfully');
+                            dispatch(fetchNGOEvents()); // Refresh list
+                          } catch (error) {
+                            console.error('[EVENT LIST] Delete failed:', error);
+                            Alert.alert('Error', error.message || 'Failed to delete event');
+                          }
+                        }
+                      }
+                    ]
+                  );
+                }}
+
+              >
+                <Icon name="delete" size={18} color="#ef4444" />
+                <Paragraph style={styles.deleteText}>Delete</Paragraph>
+              </TouchableOpacity>
             </View>
 
           </Card.Content>
@@ -208,9 +241,11 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   statText: { color: '#9ca3af', fontSize: 12 },
-  actions: { flexDirection: 'row', gap: 16, marginTop: 8 },
-  actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 8, flexWrap: 'wrap' },
+  actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
   actionText: { color: '#8b5cf6', fontSize: 13, fontWeight: '600' },
+  deleteButton: { borderColor: '#ef4444', borderWidth: 1, borderRadius: 6, paddingHorizontal: 8 },
+  deleteText: { color: '#ef4444', fontSize: 13, fontWeight: '600' },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: '#8b5cf6' },
 });
 

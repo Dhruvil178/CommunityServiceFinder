@@ -10,7 +10,6 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { theme } from './src/utils/theme';
 
 import LoadingScreen from './src/components/ui/LoadingScreen';
-import AchievementEngineBridge from './src/components/AchievementEngineBridge';
 import AchievementModal from './src/components/AchievementModal';
 
 export default function App() {
@@ -19,7 +18,6 @@ export default function App() {
       <PersistGate loading={<LoadingScreen />} persistor={persistor}>
         <SafeAreaProvider>
           <PaperProvider theme={theme}>
-            <AchievementEngineBridge />
             <AppNavigator />
             <AchievementModal />
           </PaperProvider>

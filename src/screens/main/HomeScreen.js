@@ -22,7 +22,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { gainXP } from '../../store/gameSlice';
+import { gainXP, gainCoins } from '../../store/gameSlice';
+import { unlockAchievement, achievements } from '../../store/achievementSlice';
 import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
@@ -48,6 +49,30 @@ const HomeScreen = ({ navigation }) => {
       setSeenLevelUpAt(lastLevelUp);
     }
   }, [lastLevelUp, seenLevelUpAt]);
+
+  // Award FIRST_LOGIN achievement on student's first entry to the app
+  useEffect(() => {
+    if (user && !user.hasReceivedFirstLoginAchievement) {
+      const firstLoginAchievement = achievements['FIRST_LOGIN'];
+      if (firstLoginAchievement) {
+        // Unlock the FIRST_LOGIN achievement
+        dispatch(unlockAchievement(firstLoginAchievement));
+        
+        // Award the rewards
+        if (firstLoginAchievement.rewardXP) {
+          dispatch(gainXP(firstLoginAchievement.rewardXP));
+        }
+        if (firstLoginAchievement.rewardCoins) {
+          dispatch(gainCoins(firstLoginAchievement.rewardCoins));
+        }
+
+        // Mark on backend that user has received this achievement
+        api.post('/profile/mark-first-login').catch(err => 
+          console.error('Error marking first login achievement:', err)
+        );
+      }
+    }
+  }, [user, dispatch]);
 
   useEffect(() => {
     const fetchEvents = async () => {

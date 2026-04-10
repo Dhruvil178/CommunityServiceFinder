@@ -40,11 +40,16 @@ const gameSlice = createSlice({
       }
     },
 
+    gainCoins(state, action) {
+      const amount = action.payload;
+      state.coins += amount;
+    },
+
     resetProgress() {
       return initialState;
     },
   },
 });
 
-export const { gainXP, setGameState, spendCoins, resetProgress } = gameSlice.actions;
+export const { gainXP, gainCoins, setGameState, spendCoins, resetProgress } = gameSlice.actions;
 export default gameSlice.reducer;

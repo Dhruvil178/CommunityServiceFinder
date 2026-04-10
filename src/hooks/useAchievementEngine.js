@@ -15,7 +15,8 @@ export default function useAchievementEngine() {
   const certificates     = useSelector(state => state.event?.certificates     ?? []);
   const chatbotMessages = useSelector(state => state.event?.chatbotCount) ?? 0;
 
-
+  const hasInitializedRef = useRef(false);
+  const prevXpRef = useRef(0);
   const prevCompletedRef = useRef(completedEvents.length);
   const prevCertRef      = useRef(certificates.length);
   const prevRegRef       = useRef(registeredEvents.length);
@@ -27,16 +28,31 @@ export default function useAchievementEngine() {
     }
   };
 
-
+  // Mark initialization and track previous XP
   useEffect(() => {
-    if (xp > 0)        tryUnlock('FIRST_XP');
-    if (level >= 5)    tryUnlock('LEVEL_5');
-    if (level >= 10)   tryUnlock('LEVEL_10');
-    if (level >= 20)   tryUnlock('LEVEL_20');
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      prevXpRef.current = xp;
+    }
+  }, []);
+
+  // Only trigger achievements when XP genuinely increases (not on initial load)
+  useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
+    if (xp > prevXpRef.current) {
+      // XP actually increased, check level achievements
+      if (level >= 5)    tryUnlock('LEVEL_5');
+      if (level >= 10)   tryUnlock('LEVEL_10');
+      if (level >= 20)   tryUnlock('LEVEL_20');
+    }
+    prevXpRef.current = xp;
   }, [xp, level]);
 
 
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
     const count = registeredEvents.length;
 
     if (count >= 1)  tryUnlock('FIRST_REGISTRATION');
@@ -53,6 +69,8 @@ export default function useAchievementEngine() {
 
 
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
     const count = completedEvents.length;
 
     if (count >= 1)  tryUnlock('FIRST_COMPLETION');
@@ -70,6 +88,8 @@ export default function useAchievementEngine() {
 
 
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
     const count = certificates.length;
 
     if (count >= 1)  tryUnlock('FIRST_CERTIFICATE');
@@ -85,6 +105,8 @@ export default function useAchievementEngine() {
 
 
   useEffect(() => {
+    if (!hasInitializedRef.current) return;
+    
     if (chatbotMessages >= 1) tryUnlock('CHATBOT_FIRST');
     if (chatbotMessages >= 10) tryUnlock('CHATBOT_PRO');
   }, [chatbotMessages]);
