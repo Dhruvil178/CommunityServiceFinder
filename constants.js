@@ -1,5 +1,5 @@
 
-export const API_BASE_URL = 'http://192.168.0.104:5000';
+export const API_BASE_URL = 'http://10.120.113.101:5000';
 
 export const EVENT_CATEGORIES =[
   { id: '1', name: 'Environmental', icon: 'leaf', color: '#4CAF50' },

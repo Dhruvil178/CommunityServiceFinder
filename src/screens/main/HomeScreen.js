@@ -23,29 +23,9 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gainXP } from '../../store/gameSlice';
+import api from '../../services/api';
 
 const { width } = Dimensions.get('window');
-
-const trendingEvents = [
-  {
-    id: '1',
-    title: 'Beach Cleanup Drive',
-    date: '2025-08-15',
-    location: 'Sunset Beach Park',
-    xpReward: 100,
-    image:
-      'https://images.unsplash.com/photo-1618477461853-cf6ed80faba5?w=800',
-  },
-  {
-    id: '2',
-    title: 'Food Distribution Drive',
-    date: '2025-08-12',
-    location: 'Community Center',
-    xpReward: 80,
-    image:
-      'https://images.unsplash.com/photo-1593113598332-cd288d649433?w=800',
-  },
-];
 
 const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
@@ -59,6 +39,8 @@ const HomeScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [seenLevelUpAt, setSeenLevelUpAt] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
   useEffect(() => {
     if (lastLevelUp && lastLevelUp !== seenLevelUpAt) {
@@ -67,14 +49,39 @@ const HomeScreen = ({ navigation }) => {
     }
   }, [lastLevelUp, seenLevelUpAt]);
 
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setLoadingEvents(true);
+        const response = await api.get('/events');
+        setEvents(response.data);
+      } catch (error) {
+        console.error('Error fetching events:', error);
+        // Fallback to empty array if API fails
+        setEvents([]);
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
+
+    fetchEvents();
+  }, []);
+
   const dailyQuests = [
     { id: 1, title: 'Share an hour on social media', xp: 25, icon: '📱' },
     { id: 2, title: 'Join 2 volunteer events', xp: 50, icon: '🎯' },
   ];
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
+    try {
+      const response = await api.get('/events');
+      setEvents(response.data);
+    } catch (error) {
+      console.error('Error refreshing events:', error);
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   const PlayerCard = () => (
@@ -165,9 +172,19 @@ const HomeScreen = ({ navigation }) => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Trending Events</Text>
-          {trendingEvents.map(event => (
-            <EventCard key={event.id} event={event} />
-          ))}
+          {loadingEvents ? (
+            <Surface style={styles.loadingCard}>
+              <Text style={styles.loadingText}>Loading events...</Text>
+            </Surface>
+          ) : events.length > 0 ? (
+            events.slice(0, 5).map(event => (
+              <EventCard key={event._id} event={event} />
+            ))
+          ) : (
+            <Surface style={styles.noEventsCard}>
+              <Text style={styles.noEventsText}>No events available at the moment</Text>
+            </Surface>
+          )}
         </View>
       </ScrollView>
 
@@ -268,6 +285,24 @@ const styles = StyleSheet.create({
   eventTitle: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
 
   eventMeta: { color: '#9ca3af', fontSize: 12 },
+
+  loadingCard: {
+    backgroundColor: '#1a1d2e',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+
+  loadingText: { color: '#9ca3af', fontSize: 14 },
+
+  noEventsCard: {
+    backgroundColor: '#1a1d2e',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+
+  noEventsText: { color: '#9ca3af', fontSize: 14 },
 
   chatbotFloatingButton: {
     position: 'absolute',

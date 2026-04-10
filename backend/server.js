@@ -1,4 +1,4 @@
-// backend/server.js
+
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -21,11 +21,11 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI =
   process.env.MONGODB_URI || 'mongodb://localhost:27017/community-service-finder';
 
-// Middleware
+
 app.use(cors());
 app.use(express.json());
 
-// Health check
+
 app.get('/', (req, res) => {
   res.json({
     message: 'Community Service Finder API',
@@ -34,7 +34,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// API Routes
+
 app.use('/api', authRoutes);            // /api/auth/*
 app.use('/api/ngo', ngoRoutes);       // protected NGO routes
 app.use('/api/events', eventRoutes);           // /api/events/*
@@ -45,7 +45,7 @@ app.use('/api', recommendationRoutes);  // /api/recommend
 app.use('/api', attendanceRoutes);      // /api/attendance/*
 app.use('/api', certificateRoutes);     // /api/certificate/*
 
-// Error handling
+
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(err.status || 500).json({
@@ -54,12 +54,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-// MongoDB + server
+
 mongoose
   .connect(MONGODB_URI)
   .then(() => {

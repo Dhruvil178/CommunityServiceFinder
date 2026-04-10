@@ -5,8 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import axios from 'axios';
 
-// IMPORTANT: Use your local IP if testing on a real device (e.g., 'http://192.168.1.X:5000')
-const BASE_URL = 'http://192.168.0.104:5000'; 
+// IMPORTANT: Use your local IP if testing on a real device 
+const BASE_URL = 'http://10.120.113.101:5000'; 
 
 const EventsScreen = ({ navigation }) => {
   const theme = useTheme();

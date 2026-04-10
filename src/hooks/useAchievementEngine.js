@@ -1,5 +1,5 @@
-// src/hooks/useAchievementEngine.js
-// Expanded — more triggers, streak tracking, event-based rewards
+
+
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { achievements, unlockAchievement } from '../store/achievementSlice';
@@ -15,19 +15,19 @@ export default function useAchievementEngine() {
   const certificates     = useSelector(state => state.event?.certificates     ?? []);
   const chatbotMessages = useSelector(state => state.event?.chatbotCount) ?? 0;
 
-  // Track previous completed count to detect new completions
+
   const prevCompletedRef = useRef(completedEvents.length);
   const prevCertRef      = useRef(certificates.length);
   const prevRegRef       = useRef(registeredEvents.length);
 
-  // ─── Helper: unlock only if not already unlocked ───────────────────────────
+
   const tryUnlock = (achievementKey) => {
     if (achievements[achievementKey] && !unlocked[achievementKey]) {
       dispatch(unlockAchievement(achievements[achievementKey]));
     }
   };
 
-  // ─── XP + Level-based achievements ────────────────────────────────────────
+
   useEffect(() => {
     if (xp > 0)        tryUnlock('FIRST_XP');
     if (level >= 5)    tryUnlock('LEVEL_5');
@@ -35,7 +35,7 @@ export default function useAchievementEngine() {
     if (level >= 20)   tryUnlock('LEVEL_20');
   }, [xp, level]);
 
-  // ─── Registration-based achievements ──────────────────────────────────────
+
   useEffect(() => {
     const count = registeredEvents.length;
 
@@ -44,14 +44,14 @@ export default function useAchievementEngine() {
     if (count >= 10) tryUnlock('REGISTERED_10');
     if (count >= 25) tryUnlock('REGISTERED_25');
 
-    // Award XP for each new registration
+
     if (count > prevRegRef.current) {
       dispatch(gainXP(20));
     }
     prevRegRef.current = count;
   }, [registeredEvents.length]);
 
-  // ─── Event completion achievements ────────────────────────────────────────
+
   useEffect(() => {
     const count = completedEvents.length;
 
@@ -61,14 +61,14 @@ export default function useAchievementEngine() {
     if (count >= 25) tryUnlock('COMPLETED_25');
     if (count >= 50) tryUnlock('COMPLETED_50');
 
-    // Award XP for each newly completed event
+
     if (count > prevCompletedRef.current) {
       dispatch(gainXP(50));
     }
     prevCompletedRef.current = count;
   }, [completedEvents.length]);
 
-  // ─── Certificate achievements ──────────────────────────────────────────────
+
   useEffect(() => {
     const count = certificates.length;
 
@@ -76,14 +76,14 @@ export default function useAchievementEngine() {
     if (count >= 5)  tryUnlock('CERT_COLLECTOR');
     if (count >= 10) tryUnlock('CERT_MASTER');
 
-    // Award XP for each new certificate
+
     if (count > prevCertRef.current) {
       dispatch(gainXP(100));
     }
     prevCertRef.current = count;
   }, [certificates.length]);
 
-  // ─── Chatbot achievements ──────────────────────────────────────────────────
+
   useEffect(() => {
     if (chatbotMessages >= 1) tryUnlock('CHATBOT_FIRST');
     if (chatbotMessages >= 10) tryUnlock('CHATBOT_PRO');
