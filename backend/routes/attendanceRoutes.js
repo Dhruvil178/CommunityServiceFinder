@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Attendance from '../models/Attendance.js';
 import Event from '../models/Event.js';
+import User from '../models/User.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -43,19 +44,54 @@ router.post('/attendance/mark', requireAuth, async (req, res) => {
     const now = new Date();
     let attendance = await Attendance.findOne({ eventId, studentId });
     const existed = Boolean(attendance);
+    const previousStatus = attendance?.status;
 
     if (attendance) {
       attendance.status = status;
       attendance.markedAt = now;
-      await attendance.save();
     } else {
-      attendance = await Attendance.create({
+      attendance = new Attendance({
         eventId,
         studentId,
         status,
         markedAt: now,
       });
     }
+
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student user not found' });
+    }
+
+    const rewardXp = Number(event.xpReward || 0);
+    const rewardCoins = Number(event.coinsReward || 0);
+
+    let xpDelta = 0;
+    let coinsDelta = 0;
+
+    if (status === 'present') {
+      if (previousStatus !== 'present') {
+        xpDelta = rewardXp - (attendance.xpAwarded || 0);
+        coinsDelta = rewardCoins - (attendance.coinsAwarded || 0);
+        attendance.xpAwarded = rewardXp;
+        attendance.coinsAwarded = rewardCoins;
+      }
+    } else {
+      if (previousStatus === 'present') {
+        xpDelta = -(attendance.xpAwarded || rewardXp);
+        coinsDelta = -(attendance.coinsAwarded || rewardCoins);
+        attendance.xpAwarded = 0;
+        attendance.coinsAwarded = 0;
+      }
+    }
+
+    if (xpDelta !== 0 || coinsDelta !== 0) {
+      student.xp = Math.max(0, student.xp + xpDelta);
+      student.coins = Math.max(0, student.coins + coinsDelta);
+      await student.save();
+    }
+
+    await attendance.save();
 
     // Keep existing registration-based attendance workflows in sync.
     const registration = event.registrations.find(
@@ -72,6 +108,11 @@ router.post('/attendance/mark', requireAuth, async (req, res) => {
     res.status(existed ? 200 : 201).json({
       message: existed ? 'Attendance updated successfully' : 'Attendance marked successfully',
       attendance,
+      student: {
+        id: student._id,
+        xp: student.xp,
+        coins: student.coins,
+      },
     });
   } catch (error) {
     console.error('Mark attendance error:', error);

@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { checkAuthState } from '../store/authSlice';
+import { setGameState } from '../store/gameSlice';
 
 // Navigators
 import AuthNavigator from './AuthNavigator';
@@ -32,9 +33,19 @@ const HEADER_OPTS = {
 
 export default function AppNavigator() {
   const dispatch = useDispatch();
-  const { isAuthenticated, userType, isLoading } = useSelector(s => s.auth);
+  const { isAuthenticated, userType, isLoading, user } = useSelector(s => s.auth);
 
   useEffect(() => { dispatch(checkAuthState()); }, [dispatch]);
+
+  useEffect(() => {
+    if (user) {
+      dispatch(setGameState({
+        xp: user.xp ?? 0,
+        coins: user.coins ?? 0,
+        level: user.level ?? 1,
+      }));
+    }
+  }, [dispatch, user]);
 
   if (isLoading) return <LoadingScreen />;
 

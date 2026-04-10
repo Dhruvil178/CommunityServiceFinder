@@ -44,6 +44,8 @@ router.post("/auth/register", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        xp: user.xp || 0,
+        coins: user.coins || 0,
         userType: "student",
       },
     });
@@ -73,6 +75,8 @@ router.post("/auth/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        xp: user.xp || 0,
+        coins: user.coins || 0,
         userType: "student",
       },
     });

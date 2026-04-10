@@ -20,6 +20,14 @@ const attendanceSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  xpAwarded: {
+    type: Number,
+    default: 0,
+  },
+  coinsAwarded: {
+    type: Number,
+    default: 0,
+  },
 });
 
 attendanceSchema.index({ eventId: 1, studentId: 1 }, { unique: true });

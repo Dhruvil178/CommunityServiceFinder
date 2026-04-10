@@ -24,6 +24,15 @@ const gameSlice = createSlice({
       }
     },
 
+    setGameState(state, action) {
+      const { xp, level, coins, streak, lastLevelUp } = action.payload;
+      if (typeof xp === 'number') state.xp = xp;
+      if (typeof level === 'number') state.level = level;
+      if (typeof coins === 'number') state.coins = coins;
+      if (typeof streak === 'number') state.streak = streak;
+      if (typeof lastLevelUp === 'number') state.lastLevelUp = lastLevelUp;
+    },
+
     spendCoins(state, action) {
       const cost = action.payload;
       if (state.coins >= cost) {
@@ -37,5 +46,5 @@ const gameSlice = createSlice({
   },
 });
 
-export const { gainXP, spendCoins, resetProgress } = gameSlice.actions;
+export const { gainXP, setGameState, spendCoins, resetProgress } = gameSlice.actions;
 export default gameSlice.reducer;
