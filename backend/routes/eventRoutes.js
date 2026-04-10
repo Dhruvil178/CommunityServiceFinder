@@ -26,7 +26,7 @@ router.post("/:eventId/register", requireAuth, async (req, res) => {
     const studentCollege = req.body.studentCollege || req.body.college;
     const userId = req.user?.id || req.body.userId;
 
-    const event = await Event.findById(req.params.eventId);
+    const events = await Event.find({ ngoId: req.user.id });
     if (!event) return res.status(404).json({ message: "Event not found" });
 
     if (event.spotsAvailable <= 0) {

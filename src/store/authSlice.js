@@ -12,17 +12,29 @@ export const checkAuthState = createAsyncThunk(
       const userType = await AsyncStorage.getItem('userType');
 
       if (token && userData) {
-        return {
-          token,
-          user: JSON.parse(userData),
-          userType: userType || 'student'
-        };
-      }
-      return null;
-    } catch (error) {
-      console.log('AsyncStorage error:', error);
-      return null;
+  try {
+    const parsedUser = JSON.parse(userData);
+
+    // 🔥 Optional: validate token format
+    if (!token.includes(".")) {
+      throw new Error("Invalid token format");
     }
+
+    return {
+      token,
+      user: parsedUser,
+      userType: userType || 'student'
+    };
+  } catch (err) {
+    // ❌ Corrupt token/user → clear everything
+    await AsyncStorage.multiRemove(['token', 'user', 'userType']);
+    return null;
+  }
+} else {    return null;  }
+    } catch (err) {
+      console.log('Error checking auth state:', err);
+      return null;
+    }   
   }
 );
 
@@ -46,8 +58,8 @@ export const register = createAsyncThunk(
       }
 
       await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
-      await AsyncStorage.setItem('userType', 'student');
+await AsyncStorage.setItem('user', JSON.stringify(data.user));
+await AsyncStorage.setItem('userType', 'student');
 
       return { ...data, userType: 'student' };
     } catch (err) {
@@ -77,8 +89,8 @@ export const login = createAsyncThunk(
       }
 
       await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.user));
-      await AsyncStorage.setItem('userType', 'student');
+await AsyncStorage.setItem('user', JSON.stringify(data.user));
+await AsyncStorage.setItem('userType', 'student');
 
       return { ...data, userType: 'student' };
     } catch (err) {
@@ -106,8 +118,8 @@ export const registerNGO = createAsyncThunk(
       }
 
       await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.ngo));
-      await AsyncStorage.setItem('userType', 'ngo');
+await AsyncStorage.setItem('user', JSON.stringify(data.ngo));
+await AsyncStorage.setItem('userType', 'ngo');
 
       return { user: data.ngo, token: data.token, userType: 'ngo' };
     } catch (err) {
@@ -135,8 +147,8 @@ export const loginNGO = createAsyncThunk(
       }
 
       await AsyncStorage.setItem('token', data.token);
-      await AsyncStorage.setItem('user', JSON.stringify(data.ngo));
-      await AsyncStorage.setItem('userType', 'ngo');
+await AsyncStorage.setItem('user', JSON.stringify(data.ngo));
+await AsyncStorage.setItem('userType', 'ngo');
 
       return { user: data.ngo, token: data.token, userType: 'ngo' };
     } catch (err) {
@@ -186,10 +198,13 @@ export const updateProfile = createAsyncThunk(
 export const logout = createAsyncThunk(
   'auth/logout',
   async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('userType');
-    return null;
+    await AsyncStorage.multiRemove([
+  'studentToken',
+  'ngoToken',
+  'user',
+  'userType'
+]);
+
   }
 );
 

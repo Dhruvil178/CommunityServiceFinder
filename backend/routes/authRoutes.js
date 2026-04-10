@@ -1,80 +1,93 @@
-// backend/routes/authRoutes.js
 import express from "express";
-import { body } from "express-validator";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import NGO from "../models/NGO.js";
 
 const router = express.Router();
+
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret";
 
-// Student Registration
-router.post(
-  "/auth/register",
-  [
-    body("name").notEmpty().withMessage("Name required"),
-    body("email").isEmail().withMessage("Valid email required"),
-    body("password").isLength({ min: 6 }).withMessage("Password min 6 chars")
-  ],
-  async (req, res) => {
-    try {
-      const { name, email, password } = req.body;
+const generateToken = (id, userType) => {
+  return jwt.sign(
+    { id, userType },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+};
 
-      // Check if user exists
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ message: "User already exists" });
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Create user
-      const user = new User({
-        name,
-        email,
-        password: hashedPassword
-      });
-
-      await user.save();
-
-      // Generate JWT
-      const token = jwt.sign({ id: user._id, userType: 'student' }, JWT_SECRET, { expiresIn: "7d" });
-
-      res.status(201).json({
-        message: "Registration successful",
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          bio: user.bio,
-          phone: user.phone,
-          preferences: user.preferences,
-          userType: 'student'
-        }
-      });
-    } catch (error) {
-      console.error("Registration error:", error);
-      res.status(500).json({ message: "Server error" });
-    }
-  }
-);
-/* ============================
-   NGO REGISTER
-   POST /api/ngo/register
-============================ */
-router.post("/register", async (req, res) => {
+/* =========================
+   STUDENT REGISTER
+========================= */
+router.post("/auth/register", async (req, res) => {
   try {
-    const {
+    const { name, email, password } = req.body;
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
       name,
       email,
-      password,
-      organizationName,
-      registrationNumber,
-    } = req.body;
+      password: hashedPassword,
+    });
 
-    // Check existing NGO
+    const token = generateToken(user._id, "student");
+
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: "student",
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   STUDENT LOGIN
+========================= */
+router.post("/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Invalid credentials" });
+
+    const token = generateToken(user._id, "student");
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: "student",
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   NGO REGISTER
+========================= */
+router.post("/ngo/register", async (req, res) => {
+  try {
+    const { name, email, password, organizationName, registrationNumber } = req.body;
+
     const existing = await NGO.findOne({
       $or: [{ email }, { registrationNumber }],
     });
@@ -83,10 +96,9 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "NGO already exists" });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const ngo = new NGO({
+    const ngo = await NGO.create({
       name,
       email,
       password: hashedPassword,
@@ -94,17 +106,9 @@ router.post("/register", async (req, res) => {
       registrationNumber,
     });
 
-    await ngo.save();
-
-    // Generate token
-    const token = jwt.sign(
-      { id: ngo._id, userType: "ngo" },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateToken(ngo._id, "ngo");
 
     res.status(201).json({
-      message: "NGO registered successfully",
       token,
       ngo: {
         id: ngo._id,
@@ -115,81 +119,26 @@ router.post("/register", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("NGO register error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
-// Student Login
-router.post(
-  "/auth/login",
-  [
-    body("email").isEmail().withMessage("Valid email required"),
-    body("password").notEmpty().withMessage("Password required")
-  ],
-  async (req, res) => {
-    try {
-      const { email, password } = req.body;
 
-      // Find user
-      const user = await User.findOne({ email });
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      // Check password
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      // Generate JWT
-      const token = jwt.sign({ id: user._id, userType: 'student' }, JWT_SECRET, { expiresIn: "7d" });
-
-      res.json({
-        message: "Login successful",
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          bio: user.bio,
-          phone: user.phone,
-          preferences: user.preferences,
-          userType: 'student'
-        }
-      });
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Server error" });
-    }
-  }
-);
-/* ============================
+/* =========================
    NGO LOGIN
-   POST /api/ngo/login
-============================ */
-router.post("/login", async (req, res) => {
+========================= */
+router.post("/ngo/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const ngo = await NGO.findOne({ email });
-    if (!ngo) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    if (!ngo) return res.status(401).json({ message: "Invalid credentials" });
 
-    const isMatch = await bcrypt.compare(password, ngo.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    const match = await bcrypt.compare(password, ngo.password);
+    if (!match) return res.status(401).json({ message: "Invalid credentials" });
 
-    const token = jwt.sign(
-      { id: ngo._id, userType: "ngo" },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = generateToken(ngo._id, "ngo");
 
     res.json({
-      message: "NGO login successful",
       token,
       ngo: {
         id: ngo._id,
@@ -200,8 +149,8 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("NGO login error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 export default router;

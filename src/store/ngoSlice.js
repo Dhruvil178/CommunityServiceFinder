@@ -17,6 +17,10 @@ export const createEvent = createAsyncThunk(
   async (eventData, { getState, rejectWithValue }) => {
     try {
       const token = getState().auth?.token;
+
+if (!token) {
+  return rejectWithValue('No auth token found. Please login again.');
+}
       if (!token) return rejectWithValue('No auth token');
 
       const res = await fetch(API_ENDPOINTS.NGO_CREATE_EVENT, {
@@ -29,7 +33,13 @@ export const createEvent = createAsyncThunk(
       });
 
       const data = await safeJson(res);
-      if (!res.ok) return rejectWithValue(data.message || 'Create failed');
+      if (!res.ok) {
+  if (res.status === 401) {
+    // 🔥 TOKEN INVALID → FORCE LOGOUT
+    return rejectWithValue('SESSION_EXPIRED');
+  }
+  return rejectWithValue(data.message || 'Request failed');
+}
 
       return data.event;
     } catch (err) {

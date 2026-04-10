@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 
 import authRoutes from './routes/authRoutes.js';
 import ngoRoutes from './routes/ngoRoutes.js';
-import ngoAuthRoutes from './routes/ngoAuthRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import securityRoutes from './routes/securityRoutes.js';
@@ -16,7 +15,7 @@ import attendanceRoutes from './routes/attendanceRoutes.js';
 import certificateRoutes from './routes/certificateRoutes.js';
 
 dotenv.config();
-
+console.log("JWT SECRET:", process.env.JWT_SECRET);
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI =
@@ -37,7 +36,6 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api', authRoutes);            // /api/auth/*
-app.use('/api/ngo', ngoAuthRoutes);   // auth (login/register)
 app.use('/api/ngo', ngoRoutes);       // protected NGO routes
 app.use('/api/events', eventRoutes);           // /api/events/*
 app.use('/api', profileRoutes);         // /api/profile
@@ -66,7 +64,7 @@ mongoose
   .connect(MONGODB_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB');
-    app.listen(PORT, () =>
+    app.listen(5000, '0.0.0.0', () =>
   console.log(`🚀 Server running on http://localhost:${PORT}`)
 );
   })
