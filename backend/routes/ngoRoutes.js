@@ -78,17 +78,14 @@ const validateEventPayload = (body, existingEvent = null) => {
   return null;
 };
 
-
-
-// ================= CREATE EVENT =================
+/* =========================================================
+   CREATE EVENT
+========================================================= */
 router.post('/events', requireAuth, async (req, res) => {
-  console.log("👉 CREATE EVENT HIT", req.user);
-
   try {
     const ngo = await NGO.findById(req.user.id);
 
     if (!ngo) {
-      console.log("❌ NGO NOT FOUND:", req.user.id);
       return res.status(404).json({ message: 'NGO not found' });
     }
 
@@ -109,38 +106,72 @@ router.post('/events', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create event error:', error);
+    console.error('Create event error:', error);
     res.status(500).json({ message: 'Failed to create event' });
   }
 });
 
-
-
-// ================= GET EVENTS =================
+/* =========================================================
+   GET NGO EVENTS
+========================================================= */
 router.get('/events', requireAuth, async (req, res) => {
-  console.log("👉 GET EVENTS HIT", req.user);
-
   try {
     const events = await Event.find({ ngoId: req.user.id }).sort({ createdAt: -1 });
     res.json({ events });
 
   } catch (error) {
-    console.error('❌ Fetch NGO events error:', error);
+    console.error('Fetch NGO events error:', error);
     res.status(500).json({ message: 'Failed to fetch events' });
   }
 });
 
+/* =========================================================
+   🔥 FIX: GET EVENT REGISTRATIONS (MISSING ROUTE)
+   THIS FIXES YOUR 404 ERROR
+========================================================= */
+router.get('/events/:eventId/registrations', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
 
+    const event = await Event.findById(eventId);
 
-// ================= DASHBOARD =================
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    // ensure NGO owns this event
+    if (event.ngoId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized access' });
+    }
+
+    const registrations = event.registrations || [];
+
+    const stats = {
+      total: registrations.length,
+      attended: registrations.filter(r => r.attended).length,
+      certificatesIssued: registrations.filter(r => r.certificateIssued).length,
+    };
+
+    res.json({
+      event,
+      registrations,
+      stats,
+    });
+
+  } catch (error) {
+    console.error('Fetch registrations error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
 router.get('/dashboard/stats', requireAuth, async (req, res) => {
-  console.log("👉 DASHBOARD HIT", req.user);
-
   try {
     const ngo = await NGO.findById(req.user.id);
 
     if (!ngo) {
-      console.log("❌ NGO NOT FOUND IN DASHBOARD");
       return res.status(404).json({ message: 'NGO not found' });
     }
 
@@ -155,6 +186,7 @@ router.get('/dashboard/stats', requireAuth, async (req, res) => {
     const completedEvents = events.filter(e => e.status === 'completed').length;
 
     const allRegistrations = events.flatMap(e => e.registrations || []);
+
     const totalRegistrations = allRegistrations.length;
     const totalAttended = allRegistrations.filter(r => r.attended).length;
     const totalCertificates = allRegistrations.filter(r => r.certificateIssued).length;
@@ -166,8 +198,10 @@ router.get('/dashboard/stats', requireAuth, async (req, res) => {
 
     const thisMonth = events.filter(e => {
       const d = new Date(e.date);
-      return d.getMonth() === now.getMonth() &&
-             d.getFullYear() === now.getFullYear();
+      return (
+        d.getMonth() === now.getMonth() &&
+        d.getFullYear() === now.getFullYear()
+      );
     }).length;
 
     res.json({
@@ -182,11 +216,9 @@ router.get('/dashboard/stats', requireAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Dashboard stats error:', error);
+    console.error('Dashboard stats error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-
 
 export default router;
