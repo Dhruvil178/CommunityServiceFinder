@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, Image, Alert, ActivityIndicator } from 'react-native';
 import { Card, Title, Paragraph, Button, Chip, Searchbar, useTheme, Badge } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import axios from 'axios';
 
@@ -10,13 +11,30 @@ const BASE_URL = 'http://192.168.0.106:5000';
 
 const EventsScreen = ({ navigation }) => {
   const theme = useTheme();
+  const user = useSelector(state => state.auth.user);
   const [searchQuery, setSearchQuery] = useState('');
-  const[selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const categories = ['All', 'Environmental', 'Education', 'Health', 'Community Support'];
+
+  // Check if user is registered for an event
+  const isUserRegistered = (event) => {
+    if (!user || !event.registrations || !Array.isArray(event.registrations)) {
+      return false;
+    }
+
+    const userId = user.id || user._id || user.uid;
+    return event.registrations.some(reg => {
+      const regUserId = reg.userId && (reg.userId.toString ? reg.userId.toString() : reg.userId);
+      return (
+        regUserId === userId ||
+        (user.email && reg.studentEmail?.toLowerCase() === user.email.toLowerCase())
+      );
+    });
+  };
 
   // Fetch from Database
   const fetchEvents = async () => {
@@ -61,60 +79,70 @@ const EventsScreen = ({ navigation }) => {
     return colors[category] || theme.colors.primary;
   };
 
-  const EventCard = ({ event }) => (
-    <Card
-      style={styles.eventCard}
-      onPress={() => navigation.navigate('EventDetails', { event })}
-    >
-      <Image
-        source={{ uri: event.image || 'https://via.placeholder.com/400x200.png?text=Event+Image' }}
-        style={styles.eventImage}
-        resizeMode="cover"
-      />
+  const EventCard = ({ event }) => {
+    const registered = isUserRegistered(event);
 
-      <Badge
-        style={[
-          styles.spotsBadge,
-          { backgroundColor: getCategoryColor(event.category) },
-        ]}
+    return (
+      <Card
+        style={styles.eventCard}
+        onPress={() => navigation.navigate('EventDetails', { event })}
       >
-        {event.spotsAvailable} spots left
-      </Badge>
+        <Image
+          source={{ uri: event.image || 'https://via.placeholder.com/400x200.png?text=Event+Image' }}
+          style={styles.eventImage}
+          resizeMode="cover"
+        />
 
-      <Card.Content>
-        <Title numberOfLines={2}>{event.title}</Title>
-
-        <Chip
-          icon="tag"
-          style={{ backgroundColor: getCategoryColor(event.category) + '20', marginVertical: 4 }}
-          textStyle={{ color: getCategoryColor(event.category) }}
-          compact
+        <Badge
+          style={[
+            styles.spotsBadge,
+            { backgroundColor: getCategoryColor(event.category) },
+          ]}
         >
-          {event.category || 'Event'}
-        </Chip>
+          {event.spotsAvailable} spots left
+        </Badge>
 
-        <Paragraph numberOfLines={2}>{event.description}</Paragraph>
+        <Card.Content>
+          <Title numberOfLines={2}>{event.title}</Title>
 
-        <View style={styles.eventDetails}>
-          <Icon name="schedule" size={16} color={theme.colors.outline} />
-          <Paragraph>{event.date} at {event.time}</Paragraph>
+          <Chip
+            icon="tag"
+            style={{ backgroundColor: getCategoryColor(event.category) + '20', marginVertical: 4 }}
+            textStyle={{ color: getCategoryColor(event.category) }}
+            compact
+          >
+            {event.category || 'Event'}
+          </Chip>
 
-          <Icon name="location-on" size={16} color={theme.colors.outline} />
-          <Paragraph numberOfLines={1}>{event.location}</Paragraph>
+          <Paragraph numberOfLines={2}>{event.description}</Paragraph>
 
-          <Icon name="group" size={16} color={theme.colors.outline} />
-          <Paragraph>{event.organizer || 'Local NGO'}</Paragraph>
-        </View>
+          <View style={styles.eventDetails}>
+            <Icon name="schedule" size={16} color={theme.colors.outline} />
+            <Paragraph>{event.date} at {event.time}</Paragraph>
 
-        <Button
-          mode="contained"
-          onPress={() => navigation.navigate('EventRegistration', { event })}
-        >
-          Register Now
-        </Button>
-      </Card.Content>
-    </Card>
-  );
+            <Icon name="location-on" size={16} color={theme.colors.outline} />
+            <Paragraph numberOfLines={1}>{event.location}</Paragraph>
+
+            <Icon name="group" size={16} color={theme.colors.outline} />
+            <Paragraph>{event.organizer || 'Local NGO'}</Paragraph>
+          </View>
+
+          {registered ? (
+            <Button mode="contained" disabled color="#10b981">
+              ✓ Registered
+            </Button>
+          ) : (
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('EventRegistration', { event })}
+            >
+              Register Now
+            </Button>
+          )}
+        </Card.Content>
+      </Card>
+    );
+  };
 
   if (loading) {
     return (

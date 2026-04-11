@@ -13,6 +13,7 @@ import chatbotRoutes from './routes/chatbot.js';
 import recommendationRoutes from './routes/recommendation.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
 import certificateRoutes from './routes/certificateRoutes.js';
+import dailyQuestRoutes from './routes/dailyQuestRoutes.js';
 
 dotenv.config();
 console.log("JWT SECRET:", process.env.JWT_SECRET);
@@ -44,6 +45,7 @@ app.use('/api/chatbot', chatbotRoutes); // /api/chatbot/chat
 app.use('/api', recommendationRoutes);  // /api/recommend
 app.use('/api', attendanceRoutes);      // /api/attendance/*
 app.use('/api', certificateRoutes);     // /api/certificate/*
+app.use('/api/dailyquests', dailyQuestRoutes); // /api/dailyquests/*
 
 
 app.use((err, req, res, next) => {

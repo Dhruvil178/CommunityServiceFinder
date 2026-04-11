@@ -6,6 +6,7 @@ import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import EventRegistrationScreen from "../screens/events/EventRegistrationScreen";
 import UpcomingEventsScreen from "../screens/events/UpcomingEventsScreen";
 import ChatbotScreen from "../screens/main/ChatbotScreen";
+import MyCompletedEventsScreen from "../screens/main/MyCompletedEventsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +21,7 @@ export default function StackNavigator() {
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
       <Stack.Screen name="EventRegistration" component={EventRegistrationScreen} />
       <Stack.Screen name="UpcomingEvents" component={UpcomingEventsScreen} />
+      <Stack.Screen name="MyCompletedEvents" component={MyCompletedEventsScreen} />
 
       {/* Chatbot */}
       <Stack.Screen name="Chatbot" component={ChatbotScreen} />

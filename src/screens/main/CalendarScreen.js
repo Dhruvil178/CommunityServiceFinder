@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Card, Title, Text, Chip, ProgressBar } from 'react-native-paper';
 import { useSelector } from 'react-redux';
@@ -8,12 +8,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import moment from 'moment';
 import api from '../../services/api';
 
-const CalendarScreen = ({ navigation }) => {
+const CalendarScreen = ({ navigation, route }) => {
   const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const user = useSelector(state => state.auth.user);
+  const parentNavigation = route.params?.parentNavigation;
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -50,11 +51,18 @@ const CalendarScreen = ({ navigation }) => {
     .filter(event => moment(event.date).isSameOrAfter(moment(), 'day'))
     .sort((a, b) => moment(a.date).diff(moment(b.date)));
 
-  const selectedDateEvents = upcomingRegisteredEvents.filter(event => event.date === selectedDate);
+  // Normalize dates for comparison - ensure consistent format YYYY-MM-DD
+  const normalizeDate = (dateStr) => {
+    return moment(dateStr).format('YYYY-MM-DD');
+  };
+
+  const selectedDateEvents = upcomingRegisteredEvents.filter(event => 
+    normalizeDate(event.date) === selectedDate
+  );
 
   const markedDates = upcomingRegisteredEvents.reduce((acc, event) => {
-    if (!event.date) return acc;
-    acc[event.date] = { marked: true, dotColor: '#8b5cf6' };
+    const normalizedDate = normalizeDate(event.date);
+    acc[normalizedDate] = { marked: true, dotColor: '#8b5cf6' };
     return acc;
   }, {
     [selectedDate]: { selected: true, selectedColor: '#8b5cf6' },
@@ -63,10 +71,12 @@ const CalendarScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.banner}>
-          <Title style={styles.bannerTitle}>🗺 Quest Timeline</Title>
-          <Text style={styles.bannerText}>Plan your XP for the week</Text>
-        </LinearGradient>
+        <TouchableOpacity onPress={() => parentNavigation.navigate('MyCompletedEvents')}>
+          <LinearGradient colors={['#6366f1', '#8b5cf6']} style={styles.banner}>
+            <Title style={styles.bannerTitle}>🗺 Quest Timeline</Title>
+            <Text style={styles.bannerText}>Tap to view your event history</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         <Calendar
           markedDates={markedDates}
@@ -85,7 +95,7 @@ const CalendarScreen = ({ navigation }) => {
         {loading ? (
           <Card style={styles.card}>
             <Card.Content>
-              <Text style={styles.noEventsText}>Loading registered events...</Text>
+              <Text style={styles.noEventsText}>Loading events...</Text>
             </Card.Content>
           </Card>
         ) : selectedDateEvents.length > 0 ? (
@@ -108,12 +118,12 @@ const CalendarScreen = ({ navigation }) => {
           </Card>
         )}
 
-        <Title style={styles.sectionTitle}>Upcoming Registered Events</Title>
+        <Title style={styles.sectionTitle}>My Events</Title>
 
         {loading ? (
           <Card style={styles.card}>
             <Card.Content>
-              <Text style={styles.noEventsText}>Loading upcoming registered events...</Text>
+              <Text style={styles.noEventsText}>Loading events...</Text>
             </Card.Content>
           </Card>
         ) : upcomingRegisteredEvents.length > 0 ? (

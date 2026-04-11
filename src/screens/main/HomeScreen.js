@@ -23,16 +23,27 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gainXP, gainCoins } from '../../store/gameSlice';
+import { 
+  claimDailyQuest, 
+  checkAndResetDaily, 
+  setEventRegistrationCount,
+  loadDailyQuestState
+} from '../../store/dailyQuestSlice';
 import { unlockAchievement, achievements } from '../../store/achievementSlice';
 import api from '../../services/api';
+import { useDailyQuestSync } from '../../hooks/useDailyQuestSync';
 
 const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
   const dispatch = useDispatch();
 
+  // Sync daily quests from backend on mount
+  useDailyQuestSync();
+
   const user = useSelector(state => state.auth.user);
   const { xp, level, coins, lastLevelUp } = useSelector(state => state.game);
+  const dailyQuestsState = useSelector(state => state.dailyQuests);
 
   const xpToNextLevel = level * 100;
   const canGainXP = xp < xpToNextLevel;
@@ -42,6 +53,12 @@ const HomeScreen = ({ navigation }) => {
   const [seenLevelUpAt, setSeenLevelUpAt] = useState(null);
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [userRegistrations, setUserRegistrations] = useState([]);
+
+  // Check and reset daily quests if needed (local time check)
+  useEffect(() => {
+    dispatch(checkAndResetDaily());
+  }, [dispatch]);
 
   useEffect(() => {
     if (lastLevelUp && lastLevelUp !== seenLevelUpAt) {
@@ -55,10 +72,8 @@ const HomeScreen = ({ navigation }) => {
     if (user && !user.hasReceivedFirstLoginAchievement) {
       const firstLoginAchievement = achievements['FIRST_LOGIN'];
       if (firstLoginAchievement) {
-        // Unlock the FIRST_LOGIN achievement
         dispatch(unlockAchievement(firstLoginAchievement));
         
-        // Award the rewards
         if (firstLoginAchievement.rewardXP) {
           dispatch(gainXP(firstLoginAchievement.rewardXP));
         }
@@ -66,7 +81,6 @@ const HomeScreen = ({ navigation }) => {
           dispatch(gainCoins(firstLoginAchievement.rewardCoins));
         }
 
-        // Mark on backend that user has received this achievement
         api.post('/profile/mark-first-login').catch(err => 
           console.error('Error marking first login achievement:', err)
         );
@@ -74,40 +88,85 @@ const HomeScreen = ({ navigation }) => {
     }
   }, [user, dispatch]);
 
+  // Fetch events and check user's event registrations
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchEventsAndRegistrations = async () => {
       try {
         setLoadingEvents(true);
-        const response = await api.get('/events');
-        setEvents(response.data);
+        const [eventsResponse, registrationsResponse] = await Promise.all([
+          api.get('/events'),
+          api.get('/dailyquests/registrations/user') // Endpoint to get user's registrations
+        ]);
+        
+        setEvents(eventsResponse.data);
+        
+        // Get count of registered events
+        const registrationCount = registrationsResponse.data.count || 0;
+        dispatch(setEventRegistrationCount(registrationCount));
+        setUserRegistrations(registrationsResponse.data.registrations || []);
       } catch (error) {
-        console.error('Error fetching events:', error);
-        // Fallback to empty array if API fails
+        console.error('Error fetching events or registrations:', error);
         setEvents([]);
+        setUserRegistrations([]);
       } finally {
         setLoadingEvents(false);
       }
     };
 
-    fetchEvents();
-  }, []);
-
-  const dailyQuests = [
-    { id: 1, title: 'Share an hour on social media', xp: 25, icon: '📱' },
-    { id: 2, title: 'Join 2 volunteer events', xp: 50, icon: '🎯' },
-  ];
+    fetchEventsAndRegistrations();
+  }, [dispatch]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const response = await api.get('/events');
-      setEvents(response.data);
+      const [eventsResponse, registrationsResponse] = await Promise.all([
+        api.get('/events'),
+        api.get('/dailyquests/registrations/user')
+      ]);
+      
+      setEvents(eventsResponse.data);
+      const registrationCount = registrationsResponse.data.count || 0;
+      dispatch(setEventRegistrationCount(registrationCount));
+      setUserRegistrations(registrationsResponse.data.registrations || []);
     } catch (error) {
       console.error('Error refreshing events:', error);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [dispatch]);
+
+  // Handle claiming a daily quest
+  const handleClaimQuest = async (questId) => {
+    try {
+      const quest = dailyQuestsState.quests[questId];
+      
+      if (quest.claimedToday) {
+        alert('You have already claimed this quest today!');
+        return;
+      }
+
+      // For the event registration quest, check if requirements are met
+      if (questId === 'JOIN_2_EVENTS' && dailyQuestsState.quests.JOIN_2_EVENTS.eventRegistrationCount < 2) {
+        alert(`You need to register for 2 events. Current registrations: ${dailyQuestsState.quests.JOIN_2_EVENTS.eventRegistrationCount}`);
+        return;
+      }
+
+      // Call backend API to claim the quest
+      const response = await api.post('/dailyquests/claim', { questId });
+
+      if (response.status === 200 || response.status === 201) {
+        // Dispatch Redux actions to claim the quest and award XP/coins
+        dispatch(claimDailyQuest(questId));
+        dispatch(gainXP(quest.xp));
+        dispatch(gainCoins(quest.coins));
+
+        alert(`🎉 Quest claimed! +${quest.xp} XP, +${quest.coins} Coins`);
+      }
+    } catch (error) {
+      console.error('Error claiming quest:', error);
+      alert('Failed to claim quest. Please try again.');
+    }
+  };
 
   const PlayerCard = () => (
     <LinearGradient
@@ -122,7 +181,7 @@ const HomeScreen = ({ navigation }) => {
             style={styles.avatar}
           />
           <View style={{ marginLeft: 12 }}>
-            <Text style={styles.playerName}>{user?.name || 'Dhruvil'}</Text>
+            <Text style={styles.playerName}>{user?.name || 'Student'}</Text>
             <Chip style={styles.levelChip} textStyle={styles.levelChipText}>
               Lvl {level}
             </Chip>
@@ -144,40 +203,74 @@ const HomeScreen = ({ navigation }) => {
     </LinearGradient>
   );
 
-  const QuestCard = ({ quest }) => (
-    <Surface style={styles.questCard}>
+  const QuestCard = ({ quest, questId, isCompleted, canClaim }) => (
+    <Surface style={[styles.questCard, !canClaim && styles.questCardDisabled]}>
       <Text style={styles.questIcon}>{quest.icon}</Text>
       <View style={{ flex: 1 }}>
         <Text style={styles.questTitle}>{quest.title}</Text>
-        <Text style={styles.rewardText}>+{quest.xp} XP</Text>
+        <Text style={styles.rewardText}>+{quest.xp} XP • +{quest.coins} 🪙</Text>
+        {questId === 'JOIN_2_EVENTS' && (
+          <Text style={styles.questProgress}>
+            Registrations: {dailyQuestsState.quests.JOIN_2_EVENTS.eventRegistrationCount}/2
+          </Text>
+        )}
+        {isCompleted && (
+          <Text style={styles.claimedText}>✓ Claimed today</Text>
+        )}
       </View>
       <Button
         mode="contained"
-        disabled={!canGainXP}
-        onPress={() => dispatch(gainXP(quest.xp))}
+        disabled={!canClaim || isCompleted}
+        onPress={() => handleClaimQuest(questId)}
+        style={styles.questButton}
       >
-        Start
+        {isCompleted ? '✓' : 'Claim'}
       </Button>
     </Surface>
   );
 
-  const EventCard = ({ event }) => (
-    <Surface style={styles.eventCard}>
-      <Image source={{ uri: event.image }} style={styles.eventImage} />
-      <View style={{ padding: 12 }}>
-        <Text style={styles.eventTitle}>{event.title}</Text>
-        <Text style={styles.eventMeta}>{event.date}</Text>
-        <Text style={styles.eventMeta}>{event.location}</Text>
-        <Button
-          mode="contained"
-          style={{ marginTop: 8 }}
-          onPress={() => navigation.navigate('Events')}
-        >
-          Join (+{event.xpReward} XP)
-        </Button>
-      </View>
-    </Surface>
-  );
+  const EventCard = ({ event }) => {
+    // Check if user is already registered for this event
+    const isUserRegistered = !!(user && event.registrations && Array.isArray(event.registrations) && 
+      event.registrations.some(reg => {
+        const userId = user.id || user._id || user.uid;
+        const regUserId = reg.userId && (reg.userId.toString ? reg.userId.toString() : reg.userId);
+        return (
+          regUserId === userId ||
+          (user.email && reg.studentEmail?.toLowerCase() === user.email.toLowerCase())
+        );
+      })
+    );
+
+    return (
+      <Surface style={styles.eventCard}>
+        <Image source={{ uri: event.image }} style={styles.eventImage} />
+        <View style={{ padding: 12 }}>
+          <Text style={styles.eventTitle}>{event.title}</Text>
+          <Text style={styles.eventMeta}>{event.date}</Text>
+          <Text style={styles.eventMeta}>{event.location}</Text>
+          {isUserRegistered ? (
+            <Button
+              mode="contained"
+              style={{ marginTop: 8 }}
+              disabled
+              color="#10b981"
+            >
+              ✓ Registered
+            </Button>
+          ) : (
+            <Button
+              mode="contained"
+              style={{ marginTop: 8 }}
+              onPress={() => navigation.navigate('Events')}
+            >
+              Join (+{event.xpReward} XP)
+            </Button>
+          )}
+        </View>
+      </Surface>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -190,9 +283,21 @@ const HomeScreen = ({ navigation }) => {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Daily Quests</Text>
-          {dailyQuests.map(q => (
-            <QuestCard key={q.id} quest={q} />
-          ))}
+          <QuestCard
+            quest={dailyQuestsState.quests.DAILY_LOGIN}
+            questId="DAILY_LOGIN"
+            isCompleted={dailyQuestsState.quests.DAILY_LOGIN.claimedToday}
+            canClaim={!dailyQuestsState.quests.DAILY_LOGIN.claimedToday}
+          />
+          <QuestCard
+            quest={dailyQuestsState.quests.JOIN_2_EVENTS}
+            questId="JOIN_2_EVENTS"
+            isCompleted={dailyQuestsState.quests.JOIN_2_EVENTS.claimedToday}
+            canClaim={
+              !dailyQuestsState.quests.JOIN_2_EVENTS.claimedToday &&
+              dailyQuestsState.quests.JOIN_2_EVENTS.eventRegistrationCount >= 2
+            }
+          />
         </View>
 
         <View style={styles.section}>
@@ -290,13 +395,27 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
+  },
+
+  questCardDisabled: {
+    opacity: 0.6,
   },
 
   questIcon: { fontSize: 32, marginRight: 12 },
 
-  questTitle: { color: '#fff', fontWeight: '600' },
+  questTitle: { color: '#fff', fontWeight: '600', marginBottom: 4 },
 
-  rewardText: { color: '#4ade80', marginTop: 4 },
+  rewardText: { color: '#4ade80', marginBottom: 4, fontSize: 12 },
+
+  questProgress: { color: '#9ca3af', fontSize: 11, marginBottom: 4 },
+
+  claimedText: { color: '#10b981', fontSize: 11, fontWeight: 'bold' },
+
+  questButton: {
+    paddingHorizontal: 8,
+  },
 
   eventCard: {
     backgroundColor: '#1a1d2e',

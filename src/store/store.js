@@ -9,6 +9,7 @@ import achievementReducer from './achievementSlice';
 import userReducer from './userSlice';
 import eventReducer from './eventSlice';
 import ngoReducer from './ngoSlice';
+import dailyQuestReducer from './dailyQuestSlice';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -17,13 +18,14 @@ const rootReducer = combineReducers({
   user: userReducer,
   events: eventReducer,
   ngo: ngoReducer,
+  dailyQuests: dailyQuestReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'game', 'user'], // persist auth, game, and user data
-  blacklist: ['events', 'ngo'], // don't persist events and ngo data (fetch fresh)
+  whitelist: ['auth', 'game', 'user'], // persist auth, game, and user data only
+  blacklist: ['events', 'ngo', 'dailyQuests'], // don't persist events, ngo, and daily quests (fetch fresh)
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

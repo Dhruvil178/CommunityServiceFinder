@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import Event from "../models/Event.js";
+import User from "../models/User.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -90,6 +91,44 @@ router.post("/:eventId/register", requireAuth, async (req, res) => {
 
     event.spotsAvailable = Math.max(0, event.spotsAvailable - 1);
     await event.save();
+
+    // Update the user's daily quest registration count
+    if (userId) {
+      const user = await User.findById(userId);
+      if (user) {
+        // Initialize daily quests if not present
+        if (!user.dailyQuests) {
+          user.dailyQuests = {
+            lastReset: new Date().setHours(0, 0, 0, 0),
+            quests: {
+              DAILY_LOGIN: {
+                lastClaimedAt: null,
+                claimedToday: false,
+                claimCount: 0
+              },
+              JOIN_2_EVENTS: {
+                lastClaimedAt: null,
+                claimedToday: false,
+                eventRegistrationCount: 0,
+                claimCount: 0
+              }
+            }
+          };
+        }
+
+        // Count the user's total event registrations
+        const eventCount = await Event.countDocuments({
+          'registrations.userId': userId
+        });
+
+        // Update the JOIN_2_EVENTS quest count
+        if (user.dailyQuests.quests.JOIN_2_EVENTS) {
+          user.dailyQuests.quests.JOIN_2_EVENTS.eventRegistrationCount = eventCount;
+        }
+
+        await user.save();
+      }
+    }
 
     res.status(201).json({ message: "Registered successfully!" });
   } catch (error) {

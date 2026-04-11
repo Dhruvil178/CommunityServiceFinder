@@ -1,8 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useSelector } from 'react-redux';
 
 export default function EventDetailsScreen({ route, navigation }) {
-  const { event } = route.params; 
+  const { event } = route.params;
+  const user = useSelector(state => state.auth.user);
+  const [isRegistered, setIsRegistered] = useState(false);
+
+  useEffect(() => {
+    // Check if user is already registered for this event
+    if (user && event.registrations && Array.isArray(event.registrations)) {
+      const userId = user.id || user._id || user.uid;
+      const isAlreadyRegistered = event.registrations.some(reg => {
+        const regUserId = reg.userId && (reg.userId.toString ? reg.userId.toString() : reg.userId);
+        return (
+          regUserId === userId ||
+          (user.email && reg.studentEmail?.toLowerCase() === user.email.toLowerCase())
+        );
+      });
+      setIsRegistered(isAlreadyRegistered);
+    }
+  }, [event, user]);
 
   return (
     <ScrollView style={styles.container}>
@@ -17,12 +35,18 @@ export default function EventDetailsScreen({ route, navigation }) {
 
       <Text style={styles.description}>{event.description}</Text>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("EventRegistration", { event })}
-      >
-        <Text style={styles.buttonText}>Register for Event</Text>
-      </TouchableOpacity>
+      {isRegistered ? (
+        <View style={styles.registeredButton}>
+          <Text style={styles.registeredButtonText}>✓ Registered</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate("EventRegistration", { event })}
+        >
+          <Text style={styles.buttonText}>Register for Event</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
@@ -69,6 +93,18 @@ const styles = StyleSheet.create({
     marginBottom: 40
   },
   buttonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  registeredButton: {
+    backgroundColor: "#10b981",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 40
+  },
+  registeredButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600"

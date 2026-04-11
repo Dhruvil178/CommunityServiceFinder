@@ -39,6 +39,24 @@ const userSchema = new mongoose.Schema({
   // Track if user has received the first login welcome achievement
   hasReceivedFirstLoginAchievement: { type: Boolean, default: false },
 
+  // Daily Quests tracking
+  dailyQuests: {
+    lastReset: { type: Date, default: () => new Date().setHours(0, 0, 0, 0) },
+    quests: {
+      DAILY_LOGIN: {
+        lastClaimedAt: Date,
+        claimedToday: { type: Boolean, default: false },
+        claimCount: { type: Number, default: 0 }
+      },
+      JOIN_2_EVENTS: {
+        lastClaimedAt: Date,
+        claimedToday: { type: Boolean, default: false },
+        eventRegistrationCount: { type: Number, default: 0 },
+        claimCount: { type: Number, default: 0 }
+      }
+    }
+  },
+
   createdAt: { type: Date, default: Date.now },
   emailVerified: { type: Boolean, default: false },
 phoneVerified: { type: Boolean, default: false },

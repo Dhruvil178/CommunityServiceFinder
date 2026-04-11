@@ -12,7 +12,7 @@ import { theme } from '../utils/theme';
 
 const Tab = createBottomTabNavigator();
 
-const TabNavigator = () => (
+const TabNavigator = ({ navigation }) => (
   <>
     <AchievementEngineBridge />
     <Tab.Navigator screenOptions={({ route }) => ({
@@ -44,7 +44,7 @@ const TabNavigator = () => (
 />
     <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Dashboard' }} />
     <Tab.Screen name="Events" component={EventsScreen} options={{ title: 'Find Events' }} />
-    <Tab.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} />
+    <Tab.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Calendar' }} initialParams={{ parentNavigation: navigation }} />
     <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
     <Tab.Screen name="Certificates" component={CertificatesScreen} options={{ title: 'Certificates' }} />
   </Tab.Navigator>

@@ -20,6 +20,7 @@ import ChatbotScreen          from '../screens/main/ChatbotScreen';
 import EventDetailsScreen     from '../screens/events/EventDetailsScreen';
 import EventRegistrationScreen from '../screens/events/EventRegistrationScreen';
 import UpcomingEventsScreen   from '../screens/events/UpcomingEventsScreen';
+import MyCompletedEventsScreen from '../screens/main/MyCompletedEventsScreen';
 
 // UI
 import LoadingScreen from '../components/ui/LoadingScreen';
@@ -82,6 +83,8 @@ export default function AppNavigator() {
               options={{ headerShown: true, title: 'Register', ...HEADER_OPTS }} />
             <Stack.Screen name="UpcomingEvents" component={UpcomingEventsScreen}
               options={{ headerShown: true, title: 'Upcoming Events', ...HEADER_OPTS }} />
+            <Stack.Screen name="MyCompletedEvents" component={MyCompletedEventsScreen}
+              options={{ headerShown: true, title: 'Quest Timeline', ...HEADER_OPTS }} />
             <Stack.Screen name="Profile"      component={ProfileScreen} />
             <Stack.Screen name="EditProfile"  component={EditProfileScreen} />
             <Stack.Screen name="Security" component={SecurityScreen}
