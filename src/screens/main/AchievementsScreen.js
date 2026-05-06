@@ -269,22 +269,49 @@ export default function AchievementsScreen() {
 
   // Sync game state and achievements to backend periodically
   useEffect(() => {
+    let syncAttempts = 0;
+    const maxAttempts = 3;
+    const baseSyncInterval = 60000; // 60 seconds instead of 30
+
     const syncToBackend = async () => {
+      if (syncAttempts >= maxAttempts) {
+        console.warn('Max sync attempts reached, skipping this cycle');
+        syncAttempts = 0; // Reset for next cycle
+        return;
+      }
+
       try {
-        // Sync achievements
-        await syncAchievements(unlocked);
-        // Sync game state (xp, coins)
-        await syncGameState(xp, coins);
+        syncAttempts++;
+        
+        // Only sync if we have data to sync
+        if (Object.keys(unlocked).length > 0 || xp > 0 || coins > 0) {
+          // Sync achievements
+          try {
+            await syncAchievements(unlocked);
+          } catch (err) {
+            console.warn('Error syncing achievements (non-fatal):', err?.message);
+          }
+
+          // Sync game state (xp, coins)
+          try {
+            await syncGameState(xp, coins);
+          } catch (err) {
+            console.warn('Error syncing game state (non-fatal):', err?.message);
+          }
+        }
+
+        syncAttempts = 0; // Reset on successful sync
       } catch (err) {
-        console.error('Error syncing to backend:', err);
+        console.error('Error syncing to backend:', err?.message);
+        // Don't reset syncAttempts here - let it count up
       }
     };
 
     // Sync immediately on mount
     syncToBackend();
 
-    // Setup interval to sync every 30 seconds
-    const syncInterval = setInterval(syncToBackend, 30000);
+    // Setup interval to sync periodically (reduced frequency)
+    const syncInterval = setInterval(syncToBackend, baseSyncInterval);
 
     return () => clearInterval(syncInterval);
   }, [xp, coins, unlocked]);

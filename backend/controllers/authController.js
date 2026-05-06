@@ -10,18 +10,44 @@ export const registerUser = async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone, collegeName, collegeRollNo, collegeUniqueId, year } = req.body;
+    
+    // Check if user with email already exists
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ message: "User already exists" });
+
+    // Check if college unique ID (SAP ID) already exists
+    user = await User.findOne({ 'college.uniqueId': collegeUniqueId });
+    if (user) return res.status(400).json({ message: "This College Unique ID is already registered" });
 
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
 
-    user = new User({ name, email, password: hashed });
+    user = new User({ 
+      name, 
+      email, 
+      password: hashed,
+      phone,
+      college: {
+        name: collegeName,
+        rollNo: collegeRollNo,
+        uniqueId: collegeUniqueId,
+        year
+      }
+    });
     await user.save();
 
     const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+    res.json({ 
+      token, 
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email,
+        phone: user.phone,
+        college: user.college
+      } 
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

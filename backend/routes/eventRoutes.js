@@ -137,4 +137,61 @@ router.post("/:eventId/register", requireAuth, async (req, res) => {
   }
 });
 
+// DELETE /api/events/:eventId/unregister - Unregister from an event
+router.delete("/:eventId/unregister", requireAuth, async (req, res) => {
+  try {
+    if (req.user?.type !== "student") {
+      return res.status(403).json({ message: "Only students can unregister from events" });
+    }
+
+    const { eventId } = req.params;
+    const userId = req.user.id;
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Find the registration to remove
+    const registrationIndex = event.registrations.findIndex(reg => 
+      reg.userId?.toString() === userId || (reg.studentEmail && userId)
+    );
+
+    if (registrationIndex === -1) {
+      return res.status(400).json({ message: "You are not registered for this event" });
+    }
+
+    // Remove the registration
+    event.registrations.splice(registrationIndex, 1);
+    event.spotsAvailable = (event.spotsAvailable || 0) + 1;
+    await event.save();
+
+    // Update user's daily quest event registration count
+    if (userId) {
+      const user = await User.findById(userId);
+      if (user && user.dailyQuests && user.dailyQuests.quests.JOIN_2_EVENTS) {
+        // Recalculate event registration count
+        const eventCount = await Event.countDocuments({
+          'registrations.userId': userId
+        });
+        user.dailyQuests.quests.JOIN_2_EVENTS.eventRegistrationCount = eventCount;
+        await user.save();
+      }
+    }
+
+    res.json({
+      message: "Successfully unregistered from the event",
+      event: {
+        id: event._id,
+        title: event.title,
+        registrationCount: event.registrations.length,
+        spotsAvailable: event.spotsAvailable
+      }
+    });
+  } catch (err) {
+    console.error("Unregister error:", err);
+    res.status(500).json({ message: "Server error: " + err.message });
+  }
+});
+
 export default router;

@@ -105,84 +105,74 @@ export default function ManageStudentsScreen({ route }) {
     fetchRegistrations();
   }, [fetchRegistrations]);
 
-  const handleToggleAttendance = registration => {
+  const handleToggleAttendance = async registration => {
     const studentId = getStudentIdFromRegistration(registration);
     if (!studentId) {
       Alert.alert('Unavailable', 'This registration is not linked to a student account.');
       return;
     }
 
-    setAttendanceMap(prev => {
-      const currentStatus =
-        prev[studentId] || (registration.attended ? 'present' : 'absent');
+    const currentStatus =
+      attendanceMap[studentId] || (registration.attended ? 'present' : 'absent');
+    const newStatus = currentStatus === 'present' ? 'absent' : 'present';
 
-      return {
+    // Optimistically update UI
+    setAttendanceMap(prev => ({
+      ...prev,
+      [studentId]: newStatus,
+    }));
+
+    try {
+      // Immediately save to server
+      await api.post('/attendance/mark', {
+        eventId,
+        studentId,
+        status: newStatus,
+      });
+
+      // Update local registration state
+      setRegistrations(prev =>
+        prev.map(reg => {
+          if (reg._id === registration._id) {
+            const isPresent = newStatus === 'present';
+            return {
+              ...reg,
+              attended: isPresent,
+              attendedAt: isPresent ? new Date().toISOString() : null,
+              status: isPresent ? 'completed' : 'registered',
+            };
+          }
+          return reg;
+        })
+      );
+    } catch (error) {
+      // Revert optimistic update on error
+      setAttendanceMap(prev => ({
         ...prev,
-        [studentId]: currentStatus === 'present' ? 'absent' : 'present',
-      };
-    });
+        [studentId]: currentStatus,
+      }));
+
+      const message =
+        (typeof error === 'string' && error) ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to update attendance.';
+      Alert.alert('Error', message);
+    }
   };
 
   const handleMarkAttendance = async () => {
-    const payloads = registrations
-      .map(registration => {
-        const studentId = getStudentIdFromRegistration(registration);
-        if (!studentId) return null;
-
-        return {
-          registrationId: registration._id,
-          studentId,
-          status: getAttendanceStatus(registration),
-        };
-      })
-      .filter(Boolean);
-
-    if (payloads.length === 0) {
-      Alert.alert('No linked students', 'No registrations are linked to student accounts.');
-      return;
-    }
-
+    // Since attendance is now marked individually, this just refreshes the data
     setMarkAttendanceLoading(true);
-
     try {
-      await Promise.all(
-        payloads.map(payload =>
-          api.post('/attendance/mark', {
-            eventId,
-            studentId: payload.studentId,
-            status: payload.status,
-          })
-        )
-      );
-
-      const statusByRegistrationId = payloads.reduce((acc, item) => {
-        acc[item.registrationId] = item.status;
-        return acc;
-      }, {});
-
-      setRegistrations(prev =>
-        prev.map(registration => {
-          const status = statusByRegistrationId[registration._id];
-          if (!status) return registration;
-
-          const isPresent = status === 'present';
-          return {
-            ...registration,
-            attended: isPresent,
-            attendedAt: isPresent ? new Date().toISOString() : null,
-            status: isPresent ? 'completed' : 'registered',
-          };
-        })
-      );
-
-      Alert.alert('Success', 'Attendance marked successfully.');
       await fetchRegistrations();
+      Alert.alert('Success', 'Data refreshed successfully.');
     } catch (error) {
       const message =
         (typeof error === 'string' && error) ||
         error?.response?.data?.message ||
         error?.message ||
-        'Failed to mark attendance.';
+        'Failed to refresh data.';
       Alert.alert('Error', message);
     } finally {
       setMarkAttendanceLoading(false);

@@ -7,8 +7,19 @@ import api from './api';
  */
 export const syncAchievements = async (unlockedAchievements) => {
   try {
+    // Transform achievements to only include id and unlockedAt
+    const achievementsToSync = {};
+    if (unlockedAchievements && typeof unlockedAchievements === 'object') {
+      Object.entries(unlockedAchievements).forEach(([key, achievement]) => {
+        achievementsToSync[key] = {
+          id: achievement.id || key,
+          unlockedAt: achievement.unlockedAt || new Date().toISOString(),
+        };
+      });
+    }
+
     const response = await api.post('/profile/sync-achievements', {
-      achievements: unlockedAchievements,
+      achievements: achievementsToSync,
     });
     return response.data;
   } catch (err) {

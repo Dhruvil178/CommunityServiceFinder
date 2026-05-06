@@ -132,13 +132,65 @@ router.get('/events', requireAuth, async (req, res) => {
 router.get('/events/:eventId/registrations', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
+    console.log('Fetching registrations for eventId:', eventId, 'by NGO:', req.user.id);
     const event = await Event.findById(eventId).populate('registrations');
 
     if (!event) {
+      console.log('Event not found for eventId:', eventId);
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    res.json({ registrations: event.registrations || [] });
+    // Check if the event belongs to the NGO
+    if (event.ngoId.toString() !== req.user.id) {
+      console.log('Event does not belong to NGO. Event ngoId:', event.ngoId, 'NGO id:', req.user.id);
+      return res.status(403).json({ message: 'Unauthorized - you do not own this event' });
+    }
+
+    const registrations = event.registrations || [];
+    
+    // Get attendance records to merge with registration data
+    const attendanceRecords = await Attendance.find({ eventId });
+    const attendanceMap = {};
+    attendanceRecords.forEach(record => {
+      attendanceMap[record.studentId.toString()] = record;
+    });
+
+    // Update registrations with attendance data
+    const updatedRegistrations = registrations.map(reg => {
+      const studentId = reg.userId?.toString();
+      const attendanceRecord = studentId ? attendanceMap[studentId] : null;
+      
+      if (attendanceRecord) {
+        // Use attendance record status if it exists
+        reg.attended = attendanceRecord.status === 'present';
+        reg.attendedAt = attendanceRecord.markedAt;
+      }
+      
+      return reg;
+    });
+
+    const stats = {
+      total: registrations.length,
+      attended: updatedRegistrations.filter(r => r.attended).length,
+      certificatesIssued: updatedRegistrations.filter(r => r.certificateIssued).length,
+      pendingCertificates: updatedRegistrations.filter(r => r.attended && !r.certificateIssued).length,
+    };
+
+    console.log('Found event:', event.title, 'with', registrations.length, 'registrations');
+    res.json({ 
+      event: {
+        _id: event._id,
+        title: event.title,
+        date: event.date,
+        time: event.time,
+        location: event.location,
+        status: event.status,
+        spotsTotal: event.spotsTotal,
+        spotsAvailable: event.spotsAvailable,
+      },
+      stats,
+      registrations: updatedRegistrations 
+    });
 
   } catch (error) {
     console.error('Fetch registrations error:', error);
@@ -188,6 +240,99 @@ router.delete('/events/:eventId', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('[NGO ROUTES] Delete error:', error);
     res.status(500).json({ message: 'Failed to delete event' });
+  }
+});
+
+/* =========================================================
+   BULK ATTENDANCE MARKING
+========================================================= */
+router.post('/events/:eventId/attendance/bulk', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { registrationIds, attended } = req.body;
+
+    if (!Array.isArray(registrationIds) || registrationIds.length === 0) {
+      return res.status(400).json({ message: 'registrationIds must be a non-empty array' });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (event.ngoId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized - you do not own this event' });
+    }
+
+    const now = new Date();
+    let updatedCount = 0;
+
+    for (const regId of registrationIds) {
+      const registration = event.registrations.id(regId);
+      if (registration) {
+        registration.attended = attended;
+        registration.attendedAt = attended ? now : null;
+        registration.status = attended ? 'completed' : 'registered';
+        updatedCount++;
+
+        // Also update attendance record if student is linked
+        if (registration.userId) {
+          let attendance = await Attendance.findOne({ 
+            eventId, 
+            studentId: registration.userId 
+          });
+          
+          if (attendance) {
+            attendance.status = attended ? 'present' : 'absent';
+            attendance.markedAt = now;
+          } else {
+            attendance = new Attendance({
+              eventId,
+              studentId: registration.userId,
+              status: attended ? 'present' : 'absent',
+              markedAt: now,
+            });
+          }
+
+          // Handle XP/coins rewards
+          const student = await User.findById(registration.userId);
+          if (student) {
+            const rewardXp = Number(event.xpReward || 0);
+            const rewardCoins = Number(event.coinsReward || 0);
+
+            if (attended) {
+              if (attendance.status !== 'present') {
+                student.xp = Math.max(0, student.xp + rewardXp);
+                student.coins = Math.max(0, student.coins + rewardCoins);
+                attendance.xpAwarded = rewardXp;
+                attendance.coinsAwarded = rewardCoins;
+              }
+            } else {
+              if (attendance.status === 'present') {
+                student.xp = Math.max(0, student.xp - (attendance.xpAwarded || rewardXp));
+                student.coins = Math.max(0, student.coins - (attendance.coinsAwarded || rewardCoins));
+                attendance.xpAwarded = 0;
+                attendance.coinsAwarded = 0;
+              }
+            }
+            await student.save();
+          }
+
+          await attendance.save();
+        }
+      }
+    }
+
+    await event.save();
+
+    res.json({ 
+      message: `Successfully updated ${updatedCount} registrations`,
+      updatedCount 
+    });
+
+  } catch (error) {
+    console.error('Bulk attendance error:', error);
+    res.status(500).json({ message: 'Failed to update attendance' });
   }
 });
 

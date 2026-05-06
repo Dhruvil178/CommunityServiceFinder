@@ -2,10 +2,11 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_ENDPOINTS, apiLog } from '../config/config';
+import { setUser } from './userSlice';
 
 export const checkAuthState = createAsyncThunk(
   'auth/checkAuthState',
-  async () => {
+  async (_, { dispatch }) => {
     try {
       const token = await AsyncStorage.getItem('token');
       const userData = await AsyncStorage.getItem('user');
@@ -19,6 +20,9 @@ export const checkAuthState = createAsyncThunk(
     if (!token.includes(".")) {
       throw new Error("Invalid token format");
     }
+
+    // Dispatch to userSlice
+    dispatch(setUser(parsedUser));
 
     return {
       token,
@@ -38,17 +42,71 @@ export const checkAuthState = createAsyncThunk(
   }
 );
 
+export const refreshUserData = createAsyncThunk(
+  'auth/refreshUserData',
+  async (_, { getState, dispatch, rejectWithValue }) => {
+    try {
+      const { token } = getState().auth;
+      
+      if (!token) {
+        return rejectWithValue('No token available');
+      }
+
+      const res = await fetch(API_ENDPOINTS.GET_PROFILE, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return rejectWithValue(data.message || 'Failed to refresh user data');
+      }
+
+      const updatedUser = data.user;
+
+      // Update AsyncStorage
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
+      // Update Redux states
+      dispatch(setUser(updatedUser));
+      dispatch(setGameState({
+        xp: updatedUser.xp ?? 0,
+        coins: updatedUser.coins ?? 0,
+        level: updatedUser.level ?? 1,
+      }));
+
+      return updatedUser;
+    } catch (err) {
+      console.log('Refresh user data error:', err);
+      return rejectWithValue('Network error');
+    }
+  }
+);
+
 // Student Registration
 export const register = createAsyncThunk(
   'auth/register',
-  async ({ name, email, password }, { rejectWithValue }) => {
+  async ({ name, email, password, phone, collegeName, collegeRollNo, collegeUniqueId, year }, { rejectWithValue, dispatch }) => {
     try {
       apiLog(API_ENDPOINTS.REGISTER, 'POST', { name, email });
 
       const res = await fetch(API_ENDPOINTS.REGISTER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ 
+          name, 
+          email, 
+          password,
+          phone,
+          collegeName,
+          collegeRollNo,
+          collegeUniqueId,
+          year
+        }),
       });
 
       const data = await res.json();
@@ -61,6 +119,9 @@ export const register = createAsyncThunk(
 await AsyncStorage.setItem('user', JSON.stringify(data.user));
 await AsyncStorage.setItem('userType', 'student');
 
+      // Dispatch to userSlice
+      dispatch(setUser(data.user));
+
       return { ...data, userType: 'student' };
     } catch (err) {
       console.log('Register error:', err);
@@ -72,7 +133,7 @@ await AsyncStorage.setItem('userType', 'student');
 // Student Login
 export const login = createAsyncThunk(
   'auth/login',
-  async ({ email, password }, { rejectWithValue }) => {
+  async ({ email, password }, { rejectWithValue, dispatch }) => {
     try {
       apiLog(API_ENDPOINTS.LOGIN, 'POST', { email });
 
@@ -91,6 +152,9 @@ export const login = createAsyncThunk(
       await AsyncStorage.setItem('token', data.token);
 await AsyncStorage.setItem('user', JSON.stringify(data.user));
 await AsyncStorage.setItem('userType', 'student');
+
+      // Dispatch to userSlice
+      dispatch(setUser(data.user));
 
       return { ...data, userType: 'student' };
     } catch (err) {
@@ -161,7 +225,7 @@ await AsyncStorage.setItem('userType', 'ngo');
 // Update Profile
 export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
-  async (profileData, { getState, rejectWithValue }) => {
+  async (profileData, { getState, rejectWithValue, dispatch }) => {
     try {
       const { token, userType } = getState().auth;
       const endpoint = userType === 'ngo' ? API_ENDPOINTS.NGO_UPDATE_PROFILE : API_ENDPOINTS.UPDATE_PROFILE;
@@ -186,6 +250,9 @@ export const updateProfile = createAsyncThunk(
       const updatedUser = userType === 'ngo' ? data.ngo : data.user;
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
 
+      // Dispatch to userSlice
+      dispatch(setUser(updatedUser));
+
       return updatedUser;
     } catch (err) {
       console.log('Update profile error:', err);
@@ -197,14 +264,19 @@ export const updateProfile = createAsyncThunk(
 // Logout
 export const logout = createAsyncThunk(
   'auth/logout',
-  async () => {
+  async (_, { dispatch }) => {
     await AsyncStorage.multiRemove([
-  'studentToken',
-  'ngoToken',
-  'user',
-  'userType'
-]);
+      'studentToken',
+      'ngoToken',
+      'user',
+      'userType'
+    ]);
 
+    // Clear game and quest state on logout
+    dispatch({ type: 'game/resetProgress' });
+    dispatch({ type: 'dailyQuests/resetDailyQuests' });
+
+    return null;
   }
 );
 
@@ -326,6 +398,17 @@ const authSlice = createSlice({
       .addCase(updateProfile.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // Refresh User Data
+      .addCase(refreshUserData.pending, state => {
+        // No loading state for refresh
+      })
+      .addCase(refreshUserData.fulfilled, (state, action) => {
+        state.user = action.payload;
+      })
+      .addCase(refreshUserData.rejected, (state, action) => {
+        // Silent fail for refresh
       })
 
       // Logout

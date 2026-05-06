@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { Card, Title, Text, Chip, ProgressBar } from 'react-native-paper';
@@ -16,22 +16,31 @@ const CalendarScreen = ({ navigation, route }) => {
   const user = useSelector(state => state.auth.user);
   const parentNavigation = route.params?.parentNavigation;
 
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get('/events');
-        setEvents(response.data || []);
-      } catch (error) {
-        console.error('Calendar fetch error:', error);
-        setEvents([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadEvents();
+  const loadEvents = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/events');
+      setEvents(response.data || []);
+    } catch (error) {
+      console.error('Calendar fetch error:', error);
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
+
+  // Refresh events when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadEvents();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadEvents]);
 
   const registeredEvents = events
     .filter(event => Array.isArray(event.registrations))

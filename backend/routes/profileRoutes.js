@@ -82,27 +82,36 @@ router.put("/profile", requireAuth, async (req, res) => {
 router.post("/profile/sync-achievements", requireAuth, async (req, res) => {
   try {
     const { achievements } = req.body;
-    if (!achievements) {
-      return res.status(400).json({ message: "Achievements data required" });
+    if (!achievements || typeof achievements !== 'object') {
+      return res.status(400).json({ message: "Achievements data required and must be an object" });
     }
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Store achievements as a Map
-    user.achievements = new Map(Object.entries(achievements).map(([key, value]) => [
-      key,
-      {
-        id: key,
-        unlockedAt: new Date(value.unlockedAt) || new Date(),
-      }
-    ]));
+    // Convert achievements object to Map with proper validation
+    try {
+      const achievementsMap = new Map();
+      Object.entries(achievements).forEach(([key, achievement]) => {
+        if (achievement && typeof achievement === 'object') {
+          achievementsMap.set(key, {
+            id: achievement.id || key,
+            unlockedAt: achievement.unlockedAt ? new Date(achievement.unlockedAt) : new Date(),
+          });
+        }
+      });
 
-    await user.save();
+      user.achievements = achievementsMap;
+      await user.save();
 
-    res.json({ message: "Achievements synced successfully" });
+      res.json({ message: "Achievements synced successfully", count: achievementsMap.size });
+    } catch (conversionErr) {
+      console.error("Error converting achievements to Map:", conversionErr.message);
+      return res.status(400).json({ message: "Invalid achievements data format: " + conversionErr.message });
+    }
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("ERROR in sync-achievements:", err.message, err.stack);
+    res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 
@@ -111,15 +120,25 @@ router.post("/profile/sync-game-state", requireAuth, async (req, res) => {
   try {
     const { xp, coins } = req.body;
 
+    // Validate input types
     if (typeof xp !== 'number' || typeof coins !== 'number') {
-      return res.status(400).json({ message: "XP and coins must be numbers" });
+      return res.status(400).json({ 
+        message: "XP and coins must be numbers",
+        received: { xp: typeof xp, coins: typeof coins }
+      });
+    }
+
+    // Validate values are non-negative
+    if (xp < 0 || coins < 0) {
+      return res.status(400).json({ message: "XP and coins cannot be negative" });
     }
 
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    user.xp = xp;
-    user.coins = coins;
+    // Update values
+    user.xp = Math.floor(xp);
+    user.coins = Math.floor(coins);
 
     await user.save();
 
@@ -131,7 +150,8 @@ router.post("/profile/sync-game-state", requireAuth, async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("ERROR in sync-game-state:", err.message, err.stack);
+    res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 

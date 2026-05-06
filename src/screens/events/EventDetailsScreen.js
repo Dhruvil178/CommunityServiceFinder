@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
+import api from '../../services/api';
 
 export default function EventDetailsScreen({ route, navigation }) {
   const { event } = route.params;
   const user = useSelector(state => state.auth.user);
   const [isRegistered, setIsRegistered] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is already registered for this event
@@ -22,6 +24,43 @@ export default function EventDetailsScreen({ route, navigation }) {
     }
   }, [event, user]);
 
+  const handleUnregister = () => {
+    Alert.alert(
+      'Unregister',
+      'Are you sure you want to unregister from this event?',
+      [
+        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        {
+          text: 'Unregister',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const response = await api.delete(`/events/${event._id || event.id}/unregister`);
+              
+              if (response.status === 200) {
+                Alert.alert('Success', 'You have been unregistered from this event', [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setIsRegistered(false);
+                      navigation.goBack();
+                    }
+                  }
+                ]);
+              }
+            } catch (error) {
+              const msg = error?.response?.data?.message || 'Failed to unregister. Please try again.';
+              Alert.alert('Error', msg);
+            } finally {
+              setLoading(false);
+            }
+          },
+          style: 'destructive'
+        }
+      ]
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
       <Image 
@@ -30,14 +69,27 @@ export default function EventDetailsScreen({ route, navigation }) {
       />
 
       <Text style={styles.title}>{event.title}</Text>
-      <Text style={styles.date}>{event.date} at {event.time}</Text>
-      <Text style={styles.location}>{event.location}</Text>
+      <Text style={styles.date}>📅 {event.date} at {event.time}</Text>
+      <Text style={styles.location}>📍 {event.location}</Text>
 
       <Text style={styles.description}>{event.description}</Text>
 
       {isRegistered ? (
-        <View style={styles.registeredButton}>
-          <Text style={styles.registeredButtonText}>✓ Registered</Text>
+        <View>
+          <View style={styles.registeredButton}>
+            <Text style={styles.registeredButtonText}>✓ Registered</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.unregisterButton}
+            onPress={handleUnregister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.unregisterButtonText}>Unregister from Event</Text>
+            )}
+          </TouchableOpacity>
         </View>
       ) : (
         <TouchableOpacity
@@ -102,9 +154,21 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 10,
     alignItems: "center",
-    marginBottom: 40
+    marginBottom: 12
   },
   registeredButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  unregisterButton: {
+    backgroundColor: "#d32f2f",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 40
+  },
+  unregisterButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600"

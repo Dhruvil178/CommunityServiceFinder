@@ -30,6 +30,7 @@ import {
   loadDailyQuestState
 } from '../../store/dailyQuestSlice';
 import { unlockAchievement, achievements } from '../../store/achievementSlice';
+import { refreshUserData } from '../../store/authSlice';
 import api from '../../services/api';
 import { useDailyQuestSync } from '../../hooks/useDailyQuestSync';
 
@@ -58,6 +59,8 @@ const HomeScreen = ({ navigation }) => {
   // Check and reset daily quests if needed (local time check)
   useEffect(() => {
     dispatch(checkAndResetDaily());
+    // Refresh user data to sync XP/coins from backend
+    dispatch(refreshUserData());
   }, [dispatch]);
 
   useEffect(() => {
@@ -119,6 +122,9 @@ const HomeScreen = ({ navigation }) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      // Refresh user data first
+      await dispatch(refreshUserData());
+      
       const [eventsResponse, registrationsResponse] = await Promise.all([
         api.get('/events'),
         api.get('/dailyquests/registrations/user')
@@ -155,12 +161,16 @@ const HomeScreen = ({ navigation }) => {
       const response = await api.post('/dailyquests/claim', { questId });
 
       if (response.status === 200 || response.status === 201) {
-        // Dispatch Redux actions to claim the quest and award XP/coins
-        dispatch(claimDailyQuest(questId));
-        dispatch(gainXP(quest.xp));
-        dispatch(gainCoins(quest.coins));
+        const { rewards } = response.data;
+        
+        // Use rewards from backend response (source of truth)
+        if (rewards && rewards.xp && rewards.coins) {
+          dispatch(claimDailyQuest(questId));
+          dispatch(gainXP(rewards.xp));
+          dispatch(gainCoins(rewards.coins));
 
-        alert(`🎉 Quest claimed! +${quest.xp} XP, +${quest.coins} Coins`);
+          alert(`🎉 Quest claimed! +${rewards.xp} XP, +${rewards.coins} Coins`);
+        }
       }
     } catch (error) {
       console.error('Error claiming quest:', error);

@@ -13,6 +13,13 @@ const userSchema = new mongoose.Schema({
     default: "",
   },
 
+  college: {
+    name: { type: String, default: "" },
+    rollNo: { type: String, default: "" },
+    uniqueId: { type: String, default: "", sparse: true }, // SAP ID - sparse allows multiple empty values
+    year: { type: String, default: "" }, // Academic year (1st Year, 2nd Year, etc.)
+  },
+
   preferences: {
     interests: [String],
     skills: [String],

@@ -12,13 +12,32 @@ const RegisterScreen = ({ navigation }) => {
   const { isLoading, error } = useSelector(state => state.auth);
 
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [collegeName, setCollegeName] = useState('');
+  const [collegeRollNo, setCollegeRollNo] = useState('');
+  const [collegeUniqueId, setCollegeUniqueId] = useState('');
+  const [year, setYear] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    // Validate all required fields
+    if (!name || !phone || !collegeName || !collegeRollNo || !collegeUniqueId || !year || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    // Validate phone number (10 digits)
+    if (!/^[0-9]{10}$/.test(phone)) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
       return;
     }
 
@@ -27,9 +46,14 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+
     try {
     await dispatch(
-      register({ name, email, password })
+      register({ name, phone, collegeName, collegeRollNo, collegeUniqueId, year, email, password })
     ).unwrap();
 
     Alert.alert('Success', 'Student registration successful!');
@@ -53,10 +77,15 @@ const RegisterScreen = ({ navigation }) => {
 
           <Card>
             <Card.Content>
-              <TextInput label="Name" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
-              <TextInput label="Email" value={email} onChangeText={setEmail} mode="outlined" keyboardType="email-address" autoCapitalize="none" style={styles.input} />
-              <TextInput label="Password" value={password} onChangeText={setPassword} mode="outlined" secureTextEntry style={styles.input} />
-              <TextInput label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} mode="outlined" secureTextEntry style={styles.input} />
+              <TextInput label="Name *" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
+              <TextInput label="Phone Number *" value={phone} onChangeText={setPhone} mode="outlined" keyboardType="phone-pad" placeholder="10-digit phone number" style={styles.input} />
+              <TextInput label="College Name *" value={collegeName} onChangeText={setCollegeName} mode="outlined" style={styles.input} />
+              <TextInput label="College Roll No. *" value={collegeRollNo} onChangeText={setCollegeRollNo} mode="outlined" style={styles.input} />
+              <TextInput label="College Unique ID (SAP ID) *" value={collegeUniqueId} onChangeText={setCollegeUniqueId} mode="outlined" style={styles.input} />
+              <TextInput label="Academic Year *" value={year} onChangeText={setYear} mode="outlined" placeholder="e.g., 1st Year, 2nd Year" style={styles.input} />
+              <TextInput label="Email *" value={email} onChangeText={setEmail} mode="outlined" keyboardType="email-address" autoCapitalize="none" style={styles.input} />
+              <TextInput label="Password *" value={password} onChangeText={setPassword} mode="outlined" secureTextEntry style={styles.input} />
+              <TextInput label="Confirm Password *" value={confirmPassword} onChangeText={setConfirmPassword} mode="outlined" secureTextEntry style={styles.input} />
 
               <Button mode="contained" onPress={handleRegister} loading={isLoading}>
                 Sign Up

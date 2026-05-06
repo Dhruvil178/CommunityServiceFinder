@@ -32,11 +32,22 @@ const calculateLevelFromXP = (totalXp) => {
 ========================= */
 router.post("/auth/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone, collegeName, collegeRollNo, collegeUniqueId, year } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !password || !phone || !collegeName || !collegeRollNo || !collegeUniqueId || !year) {
+      return res.status(400).json({ message: "All fields are required: name, email, password, phone, collegeName, collegeRollNo, collegeUniqueId, year" });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Check if college unique ID (SAP ID) already exists
+    const existingCollege = await User.findOne({ 'college.uniqueId': collegeUniqueId });
+    if (existingCollege) {
+      return res.status(400).json({ message: "This College Unique ID is already registered" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -45,6 +56,13 @@ router.post("/auth/register", async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      phone,
+      college: {
+        name: collegeName,
+        rollNo: collegeRollNo,
+        uniqueId: collegeUniqueId,
+        year
+      }
     });
 
     const token = generateToken(user._id, "student");
@@ -68,6 +86,8 @@ router.post("/auth/register", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        college: user.college,
         xp: user.xp || 0,
         coins: user.coins || 0,
         level,
@@ -77,7 +97,7 @@ router.post("/auth/register", async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error: " + err.message });
   }
 });
 

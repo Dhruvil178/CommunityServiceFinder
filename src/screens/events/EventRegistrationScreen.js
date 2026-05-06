@@ -49,7 +49,10 @@ export default function EventRegistrationScreen({ route, navigation }) {
         [
           {
             text: 'View My Events',
-            onPress: () => navigation.navigate('Calendar'),
+            onPress: () => {
+              navigation.goBack();
+              navigation.navigate('Main', { screen: 'Calendar' });
+            },
           },
           { text: 'OK', onPress: () => navigation.goBack() },
         ]

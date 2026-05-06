@@ -37,6 +37,8 @@ const EventManagementScreen = ({ route, navigation }) => {
   const { eventId } = route.params;
   const { token } = useSelector(state => state.auth);
 
+  console.log('EventManagementScreen - eventId:', eventId);
+
   const [event, setEvent]             = useState(null);
   const [stats, setStats]             = useState({});
   const [registrations, setRegs]      = useState([]);
@@ -74,6 +76,8 @@ const EventManagementScreen = ({ route, navigation }) => {
       setRegs(registrationsData);
 
       const nextAttendanceMap = {};
+      
+      // First, set attendance based on registration.attended status
       registrationsData.forEach(registration => {
         const studentId = getStudentIdFromRegistration(registration);
         if (studentId) {
@@ -81,6 +85,7 @@ const EventManagementScreen = ({ route, navigation }) => {
         }
       });
 
+      // Then, override with attendance records if they exist (for more recent updates)
       (attendanceData?.attendance || []).forEach(record => {
         const studentId = getStudentIdFromAttendanceRecord(record);
         if (studentId) {
@@ -91,13 +96,30 @@ const EventManagementScreen = ({ route, navigation }) => {
       setAttendanceMap(nextAttendanceMap);
     } catch (err) {
       console.error("Manage Students Fetch Error:", err);
-      Alert.alert('Error', 'Failed to load event data');
+      let errorMessage = 'Failed to load event data';
+      if (err.response?.status === 404) {
+        errorMessage = 'Event not found. It may have been deleted.';
+      } else if (err.response?.status === 403) {
+        errorMessage = 'You do not have permission to view this event.';
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
   }, [eventId, token]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Refresh data when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadData]);
 
   // ─── Filter registrations ─────────────────────────────────────────────────
   useEffect(() => {

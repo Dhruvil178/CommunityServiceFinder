@@ -181,6 +181,15 @@ const NGODashboardScreen = ({ navigation }) => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Refresh data when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadData]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
